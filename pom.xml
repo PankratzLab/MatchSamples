@@ -5,14 +5,12 @@
 		http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<parent>
-		<groupId>org.genvisis</groupId>
-		<artifactId>pom-plab-private</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
-	</parent>
+	<!-- <parent> <artifactId>pom-genvisis</artifactId> <version>0.0.1-SNAPSHOT</version> 
+		<groupId>org.genvisis</groupId> </parent> -->
 
+	<groupId>org.genvisis</groupId>
 	<artifactId>MatchSamples</artifactId>
-	<version>${matchsamples.version}</version>
+	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<description></description>
@@ -21,16 +19,33 @@
 	</properties>
 
 	<dependencies>
-	
+
 		<dependency>
 			<groupId>org.pankratzlab</groupId>
 			<artifactId>PLab-common</artifactId>
+			<version>0.0.4-SNAPSHOT</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.pankratzlab</groupId>
 			<artifactId>PLab-utils</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 	</dependencies>
+
+	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.0.2</version>
+					<configuration>
+						<classesDirectory>src</classesDirectory>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+
 </project>
