@@ -918,6 +918,8 @@ public class MatchSamples {
     String factorsFile = "mds10.mds.xln";
     String minOrMax = "minmin";
     String[] factorNames = new String[] {"PC1", "PC2", "AGE01", "SEX"};
+    String skipVisualizer = "false";
+    boolean skip = false;
     // int[] factorIndices = new int[] {1,2,3,4,5,6,7,8,9,10};
     // int[] factorIndices = new int[] {1,2};
 
@@ -938,7 +940,8 @@ public class MatchSamples {
                    + ArrayUtils.toStr(factorNames, ",") + " (default))\n"
                    + "   (5) clusterfile (i.e. clusterfile=" + clusterfile + " (default))\n"
                    + "   (6) number of control sets to generate (i.e. iterations=1 (default))\n"
-                   + "   (7) minMin or maxMin (i.e. minOrMax=minMin (default))\n" + "";
+                   + "   (7) minMin or maxMin (i.e. minOrMax=minMin (default))\n" + ""
+                   + "   (8) skipVisualizer - use this if submitting a non-interactive job (i.e. skipVisualizer=false (default))\n" + "";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -971,6 +974,9 @@ public class MatchSamples {
       } else if (arg.startsWith("minOrMax=")) {
         minOrMax = arg.split("=")[1].toLowerCase();
         numArgs--;
+      } else if (arg.startsWith("skipVisualizer=")) {
+    	skipVisualizer = arg.split("=")[1].toLowerCase();
+    	numArgs--;
       }
     }
     if (numArgs != 0) {
@@ -997,6 +1003,9 @@ public class MatchSamples {
     } else {
       System.err.println(usage);
       System.exit(1);
+    }
+    if (skipVisualizer.equalsIgnoreCase("true")) {
+    	skip = true;
     }
 
     try {
@@ -1027,9 +1036,10 @@ public class MatchSamples {
         // "SEX");
         // MatchSamples.eval(dir, pairs, "/../" + factorsFile,
         // new String[] {"AGE01", "SEX=concordance"});
-
-        new MatchesVisualized(dir, "/../" + anchors, "/../" + barnaclesFile, "/../" + factorsFile,
-                              new int[] {factorIndices[0], factorIndices[1]}, pairs);
+        if (!skip) {
+	        new MatchesVisualized(dir, "/../" + anchors, "/../" + barnaclesFile, "/../" + factorsFile,
+	                              new int[] {factorIndices[0], factorIndices[1]}, pairs);
+        }
 
         if (i < iterations) {
           String[] barns = HashVec.loadFileToStringArray(dir + pairs, true, new int[] {1}, true);
