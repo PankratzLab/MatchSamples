@@ -1100,7 +1100,7 @@ public class MatchSamples {
 				visOnly = true;
 				numArgs--;
 			} else if (arg.startsWith("resultsFileNameToVis=")){
-				resultsToVis = arg.split("=")[1].toLowerCase();
+				resultsToVis = arg.split("=")[1];
 				numArgs--;
 			}
 		}
