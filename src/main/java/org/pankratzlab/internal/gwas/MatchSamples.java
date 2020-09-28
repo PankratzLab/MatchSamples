@@ -1036,6 +1036,7 @@ public class MatchSamples {
 		String skipVisualizer = "false";
 		String skipAgeSex = "true";
 		String resultsToVis = d + "matches/distances_PC1x1,PC2x1_minMin.xln";
+		boolean hideExtraControls = false;
 		boolean skipVis = false;
 		boolean skipAge = true;
 		boolean visOnly = false;
@@ -1050,7 +1051,7 @@ public class MatchSamples {
 		String clusterfile = "cluster.genome";
 		int iterations = 1;
 
-		String usage = "\\n" + "gwas.MatchSamples requires 0-1 arguments\n" + "   (0) directory (i.e. dir=" + d
+		String usage = "\n" + "gwas.MatchSamples requires 0-1 arguments\n" + "   (0) directory (i.e. dir=" + d
 				+ " (default))\n" + "   (1) cases (i.e. cases=" + casesFile + " (default))\n"
 				+ "   (2) controls (i.e. controls=" + controlsFile + " (default))\n"
 				+ "   (3) file with factors (i.e. factors=" + factorsFile + " (default))\n"
@@ -1102,6 +1103,9 @@ public class MatchSamples {
 			} else if (arg.startsWith("resultsFileNameToVis=")){
 				resultsToVis = arg.split("=")[1];
 				numArgs--;
+			}  else if (arg.startsWith("hideExtraControls=")){
+				hideExtraControls = Boolean.parseBoolean(arg.split("=")[1]);
+				numArgs--;
 			}
 		}
 
@@ -1117,7 +1121,7 @@ public class MatchSamples {
 				int[] factorIndices = ext.indexFactors(factorNames,
 						Files.getHeaderOfFile(d + factorsFile, PSF.Regex.GREEDY_WHITESPACE, log), false, log, true);
 				new MatchesVisualized(d, casesFile, controlsFile, factorsFile,
-						new int[] { factorIndices[0], factorIndices[1] }, visFile);
+						new int[] { factorIndices[0], factorIndices[1] }, visFile, hideExtraControls);
 
 			}
 		} else {
@@ -1159,7 +1163,7 @@ public class MatchSamples {
 					int[] factorIndices = ext.indexFactors(factorNames,
 							Files.getHeaderOfFile(d + factorsFile, PSF.Regex.GREEDY_WHITESPACE, log), false, log, true);
 					new MatchesVisualized(match.dir, casesFile, controlsFile, factorsFile,
-							new int[] { factorIndices[0], factorIndices[1] }, visFile);
+							new int[] { factorIndices[0], factorIndices[1] }, visFile, hideExtraControls);
 
 				}
 			}
