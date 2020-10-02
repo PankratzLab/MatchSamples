@@ -37,7 +37,7 @@ public class MatchesVisualized {
 	private final boolean hideExtraControls;
 	private Set<Integer> matchedControls = null;
 
-	public MatchesVisualized(String dir, String anchorList, String barnacleList, String factorfile, int[] factorIndices,
+	public MatchesVisualized(String dir, String samplesFile, String factorfile, int[] factorIndices,
 			String pairings, boolean hideExtraControls) {
 		String[] line;
 		Hashtable<String, String> hash;
@@ -155,8 +155,7 @@ public class MatchesVisualized {
 	public static void main(String[] args) {
 		int numArgs = args.length;
 		String dir = "C:\\Documents and Settings\\npankrat\\My Documents\\gwas\\MatchingForMito\\";
-		String anchors = "anchor_cases.dat";
-		String barnacles = "barnacle_controls.dat";
+		String samplesFile = "samples.dat";
 		String factors = "mds10.mds.xln";
 		boolean hideExtraControls = false;
 		// String pairings = "dsts_norm_minMin.xln";
@@ -173,8 +172,7 @@ public class MatchesVisualized {
 		int[] factorIndices = new int[] { 1, 2 };
 
 		String usage = "\\n" + "kaput.MatchesVisualized requires 0-1 arguments\n" + "   (0) directory (i.e. dir=" + dir
-				+ " (default))\n" + "   (1) anchors (i.e. anchors=" + anchors + " (default))\n"
-				+ "   (2) barnacles (i.e. barnacles=" + barnacles + " (default))\n"
+				+ " (default))\n" + "   (1) samples (i.e. samples=" + samplesFile + " (default))\n"
 				+ "   (3) file with factors (i.e. factors=" + factors + " (default))\n"
 				+ "   (4) indices of factors in clusterfile (i.e. indices=" + ArrayUtils.toStr(factorIndices, ",")
 				+ " (default))\n"
@@ -187,13 +185,10 @@ public class MatchesVisualized {
 			} else if (arg.startsWith("dir=")) {
 				dir = arg.split("=")[1];
 				numArgs--;
-			} else if (arg.startsWith("anchors=")) {
-				anchors = arg.split("=")[1];
+			} else if (arg.startsWith("samples=")) {
+				samplesFile = arg.split("=")[1];
 				numArgs--;
-			} else if (arg.startsWith("barnacles=")) {
-				barnacles = arg.split("=")[1];
-				numArgs--;
-			} else if (arg.startsWith("factors=")) {
+			}else if (arg.startsWith("factors=")) {
 				factors = arg.split("=")[1];
 				numArgs--;
 			} else if (arg.startsWith("indices=")) {
@@ -209,7 +204,7 @@ public class MatchesVisualized {
 			System.exit(1);
 		}
 		try {
-			new MatchesVisualized(dir, anchors, barnacles, factors, factorIndices, pairings, hideExtraControls);
+			new MatchesVisualized(dir, samplesFile, factors, factorIndices, pairings, hideExtraControls);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
