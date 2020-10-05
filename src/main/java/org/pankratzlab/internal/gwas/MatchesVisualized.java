@@ -27,8 +27,8 @@ public class MatchesVisualized {
 	public static final int WIDTH_BUFFER = 25;
 	public static final int HEIGHT_BUFFER = 25;
 	public static final int SIZE = 8;
-	private final String[] anchors;
-	private final String[] barnacles;
+	private final String[] cases;
+	private final String[] controls;
 	private double[][] data;
 	private final int[][] pairs;
 	private final double[] dists;
@@ -47,18 +47,18 @@ public class MatchesVisualized {
 		this.hideExtraControls = hideExtraControls;
 
 		time = new Date().getTime();
-		anchors = HashVec.loadFileToStringArray(dir + anchorList, false, new int[] { 0 }, true);
-		barnacles = HashVec.loadFileToStringArray(dir + barnacleList, false, new int[] { 0 }, true);
+		cases = MatchSamples.samplesFileToStringArray(samplesFile, 1);
+		controls = MatchSamples.samplesFileToStringArray(samplesFile, 0);
 
 		hash = HashVec.loadFileToHashString(dir + factorfile, 0, factorIndices, "\t", true);
 
-		data = new double[anchors.length + barnacles.length][factorIndices.length];
-		for (int i = 0; i < anchors.length; i++) {
-			data[i] = ArrayUtils.toDoubleArray(hash.get(anchors[i]).split(PSF.Regex.GREEDY_WHITESPACE));
+		data = new double[cases.length + controls.length][factorIndices.length];
+		for (int i = 0; i < cases.length; i++) {
+			data[i] = ArrayUtils.toDoubleArray(hash.get(cases[i]).split(PSF.Regex.GREEDY_WHITESPACE));
 		}
-		for (int i = 0; i < barnacles.length; i++) {
-			data[anchors.length + i] = ArrayUtils
-					.toDoubleArray(hash.get(barnacles[i]).split(PSF.Regex.GREEDY_WHITESPACE));
+		for (int i = 0; i < controls.length; i++) {
+			data[cases.length + i] = ArrayUtils
+					.toDoubleArray(hash.get(controls[i]).split(PSF.Regex.GREEDY_WHITESPACE));
 		}
 		trans = Matrix.transpose(data);
 		for (int i = 0; i < factorIndices.length; i++) {
@@ -67,19 +67,19 @@ public class MatchesVisualized {
 		data = Matrix.transpose(trans);
 
 		v = HashVec.loadFileToVec(dir + pairings, true, false, false);
-		if (v.size() != anchors.length) {
+		if (v.size() != cases.length) {
 			System.err.println("Error - number of pairings (" + v.size() + ") doesn't match number of anchors loaded ("
-					+ anchors.length + ")");
+					+ cases.length + ")");
 			System.exit(1);
 		}
 
-		pairs = new int[anchors.length][2];
-		dists = new double[anchors.length];
+		pairs = new int[cases.length][2];
+		dists = new double[cases.length];
 		matchedControls = new HashSet<Integer>();
 		for (int i = 0; i < pairs.length; i++) {
 			line = v.elementAt(i).split(PSF.Regex.GREEDY_WHITESPACE);
-			pairs[i][0] = ext.indexOfStr(line[0], anchors);
-			pairs[i][1] = ext.indexOfStr(line[1], barnacles);
+			pairs[i][0] = ext.indexOfStr(line[0], cases);
+			pairs[i][1] = ext.indexOfStr(line[1], controls);
 			matchedControls.add(pairs[i][1]);
 			try {
 				dists[i] = Double.parseDouble(line[2]);
@@ -109,16 +109,16 @@ public class MatchesVisualized {
 								(int) (data[pairs[i][0]][x] * (getWidth() - 2 * WIDTH_BUFFER)) + WIDTH_BUFFER,
 								getHeight() - (int) (data[pairs[i][0]][y] * (getHeight() - 2 * HEIGHT_BUFFER))
 										- HEIGHT_BUFFER,
-								(int) (data[anchors.length + pairs[i][1]][x] * (getWidth() - 2 * WIDTH_BUFFER))
+								(int) (data[cases.length + pairs[i][1]][x] * (getWidth() - 2 * WIDTH_BUFFER))
 										+ WIDTH_BUFFER,
-								getHeight() - (int) (data[anchors.length + pairs[i][1]][y]
+								getHeight() - (int) (data[cases.length + pairs[i][1]][y]
 										* (getHeight() - 2 * HEIGHT_BUFFER)) - HEIGHT_BUFFER,
 								4, dists[i] < mean + 3 * stdev ? Color.BLUE : Color.ORANGE);
 					}
 				}
 
 				g.setColor(Color.RED);
-				for (int i = 0; i < anchors.length; i++) {
+				for (int i = 0; i < cases.length; i++) {
 					g.fillOval(
 							(int) (data[i][x] * (getWidth() - 2 * WIDTH_BUFFER)) + WIDTH_BUFFER - SIZE / 2, getHeight()
 									- (int) (data[i][y] * (getHeight() - 2 * HEIGHT_BUFFER)) - HEIGHT_BUFFER - SIZE / 2,
@@ -126,15 +126,15 @@ public class MatchesVisualized {
 				}
 				g.setColor(Color.BLACK);
 				if (!hideExtraControls) {
-					for (int i = anchors.length; i < data.length; i++) {
+					for (int i = cases.length; i < data.length; i++) {
 						g.fillOval((int) (data[i][x] * (getWidth() - 2 * WIDTH_BUFFER)) + WIDTH_BUFFER - SIZE / 2,
 								getHeight() - (int) (data[i][y] * (getHeight() - 2 * HEIGHT_BUFFER)) - HEIGHT_BUFFER
 										- SIZE / 2,
 								SIZE, SIZE);
 					}
 				} else {
-					for (int i = anchors.length; i < data.length; i++) {
-						if (matchedControls.contains(i - anchors.length)) {
+					for (int i = cases.length; i < data.length; i++) {
+						if (matchedControls.contains(i - cases.length)) {
 							g.fillOval((int) (data[i][x] * (getWidth() - 2 * WIDTH_BUFFER)) + WIDTH_BUFFER - SIZE / 2,
 									getHeight() - (int) (data[i][y] * (getHeight() - 2 * HEIGHT_BUFFER)) - HEIGHT_BUFFER
 											- SIZE / 2,

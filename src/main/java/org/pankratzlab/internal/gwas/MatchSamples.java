@@ -80,9 +80,9 @@ public class MatchSamples {
 		if (!new File(dir + filename).exists()) {
 			System.out.println("Creating " + filename);
 			time = new Date().getTime();
-			cases = HashVec.loadFileToStringArray(dir + anchorList, false, new int[] { 0 }, true);
+			cases = samplesFileToStringArray(dir + samplesFile, 1);
 			caseData = new double[cases.length][];
-			controls = HashVec.loadFileToStringArray(dir + barnacleList, false, new int[] { 0 }, true);
+			controls = samplesFileToStringArray(dir + samplesFile, 0);
 			controlData = new double[controls.length][];
 
 			factorIndices = ext.indexFactors(factorTargets,
@@ -129,7 +129,11 @@ public class MatchSamples {
 			dists = Matrix.doubleMatrix(cases.length, controls.length, -999);
 			for (int i = 0; i < cases.length; i++) {
 				for (int j = 0; j < controls.length; j++) {
-					dists[i][j] = Distance.euclidean(caseData[i], controlData[j]);
+					if (caseData[i] == null || controlData[j] == null) {
+						dists[i][j] = Double.NaN;
+					} else {
+						dists[i][j] = Distance.euclidean(caseData[i], controlData[j]);
+					}
 				}
 			}
 			System.out.println("Finished euclidean calculations in " + ext.getTimeElapsed(time));
@@ -182,6 +186,23 @@ public class MatchSamples {
 		time = new Date().getTime();
 
 		return filename;
+	}
+	
+	public static String[] samplesFileToStringArray(String samplesFile, int caseOrControl) {
+		Vector<String> v = new Vector<String>();
+		try (BufferedReader reader = Files.getAppropriateReader(samplesFile)){
+			String line = reader.readLine();
+			while (line != null) {
+				
+				if (Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl){
+					v.add(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0]);
+				}
+			}
+		} catch (IOException ioe) {
+			System.out.println("Couldn't find samples file.");
+			ioe.printStackTrace();
+		}
+		return v.toArray(new String[0]);
 	}
 
 	public static void parseClusterfile(String dir, String anchorList, String barnacleList, String clusterfile) {
@@ -1047,7 +1068,7 @@ public class MatchSamples {
 		int iterations = 1;
 
 		String usage = "\n" + "gwas.MatchSamples requires 0-1 arguments\n" + "   (0) directory (i.e. dir=" + d
-				+ " (default))\n" + "   (1) sample file with cases and controls (i.e. samples=" + samplesFile + " (default))\n"
+				+ " (default))\n" + "   (1) sample file with cases (1)  and controls (0) (i.e. samples=" + samplesFile + " (default))\n"
 				+ "   (3) file with factors (i.e. factors=" + factorsFile + " (default))\n"
 				+ " (4) column names of factors in clusterfile (i.e. columns=" + ArrayUtils.toStr(factorNames, ",")
 				+ " (default))\n" + "   (5) clusterfile (i.e. clusterfile=" + clusterfile + " (default))\n"
@@ -1055,7 +1076,9 @@ public class MatchSamples {
 				+ "   (7) minMin or maxMin (i.e. minOrMax=minMin (default))\n" + ""
 				+ "   (8) skipVisualizer - use this if submitting a non-interactive job (i.e. skipVisualizer=false (default))\n"
 				+ "   (9) skipAgeSex - skip matching that uses age and sex (i.e. skipAgeSex=true (default))\n" + ""
-				+ "   (10) -visOnly - use this flag to skip matching and only visualize.\n" + "";
+				+ "   (10) -visOnly - use this flag to skip matching and only visualize.\n" + ""
+				+ "   (11) resultsToVis - used with visOnly flag to point to results file.\n" + ""
+				+ "   (12) hideExtraControls - hide unmatched controls in visualizer (i.e. hideExtraControls=false (default)).\n" + "";
 
 		for (String arg : args) {
 			if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -1091,7 +1114,7 @@ public class MatchSamples {
 			} else if (arg.startsWith("-visOnly")) {
 				visOnly = true;
 				numArgs--;
-			} else if (arg.startsWith("resultsFileNameToVis=")){
+			} else if (arg.startsWith("resultsToVis=")){
 				resultsToVis = arg.split("=")[1];
 				numArgs--;
 			}  else if (arg.startsWith("hideExtraControls=")){
