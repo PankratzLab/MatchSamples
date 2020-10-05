@@ -33,8 +33,7 @@ import com.google.common.primitives.Doubles;
 public class MatchSamples {
 
 	private String dir;
-	private String casesFile;
-	private String controlsFile;
+	private String samplesFile;
 	private String factorsFile;
 	private String minOrMax;
 	private String[] cols;
@@ -42,11 +41,10 @@ public class MatchSamples {
 	private double[] loadings;
 	private Logger log;
 
-	public MatchSamples(String directory, String cases, String controls, String factors, String[] cols,
+	public MatchSamples(String directory, String samplesFile, String factors, String[] cols,
 			double[] loadings, String minOrMax, boolean skipVisualizer, boolean skipAgeSexMatch) {
 		this.dir = directory;
-		this.casesFile = dir + cases;
-		this.controlsFile = dir + controls;
+		this.samplesFile = dir + samplesFile;
 		this.factorsFile = dir + factors;
 		this.loadings = loadings;
 		this.cols = cols;
@@ -54,13 +52,13 @@ public class MatchSamples {
 		this.skipAge = skipAgeSexMatch;
 	}
 
-	public static String matchMaker(String dir, String anchorList, String barnacleList, String factorfile,
+	public static String matchMaker(String dir, String samplesFile, String factorfile,
 			String[] factorTargets, double[] factorLoadings, boolean normalizeFactors) {
 		BufferedReader reader;
 		PrintWriter writer;
-		String[] line, anchors, barnacles;
+		String[] line, cases, controls;
 		double[][] dists, newDists = null;
-		double[][] allData, anchData, barnData;
+		double[][] allData, caseData, controlData;
 		long time;
 		int[] factorIndices = null;
 		String filename;
@@ -82,10 +80,10 @@ public class MatchSamples {
 		if (!new File(dir + filename).exists()) {
 			System.out.println("Creating " + filename);
 			time = new Date().getTime();
-			anchors = HashVec.loadFileToStringArray(dir + anchorList, false, new int[] { 0 }, true);
-			anchData = new double[anchors.length][];
-			barnacles = HashVec.loadFileToStringArray(dir + barnacleList, false, new int[] { 0 }, true);
-			barnData = new double[barnacles.length][];
+			cases = samplesFileToStringArray(dir + samplesFile, 1);
+			caseData = new double[cases.length][];
+			controls = samplesFileToStringArray(dir + samplesFile, 0);
+			controlData = new double[controls.length][];
 
 			factorIndices = ext.indexFactors(factorTargets,
 					Files.getHeaderOfFile(dir + factorfile, PSF.Regex.GREEDY_WHITESPACE, new Logger()), false);
@@ -100,38 +98,42 @@ public class MatchSamples {
 				}
 			}
 			for (int i = 0; i < ids.length; i++) {
-				iAnch = ext.indexOfStr(ids[i], anchors);
-				iBarn = ext.indexOfStr(ids[i], barnacles);
+				iAnch = ext.indexOfStr(ids[i], cases);
+				iBarn = ext.indexOfStr(ids[i], controls);
 				if (iAnch >= 0) {
-					anchData[iAnch] = new double[factorIndices.length];
+					caseData[iAnch] = new double[factorIndices.length];
 					for (int j = 0; j < factorIndices.length; j++) {
-						anchData[iAnch][j] = allData[j][i] * factorLoadings[j];
+						caseData[iAnch][j] = allData[j][i] * factorLoadings[j];
 					}
 				} else if (iBarn >= 0) {
-					barnData[iBarn] = new double[factorIndices.length];
+					controlData[iBarn] = new double[factorIndices.length];
 					for (int j = 0; j < factorIndices.length; j++) {
-						barnData[iBarn][j] = allData[j][i] * factorLoadings[j];
+						controlData[iBarn][j] = allData[j][i] * factorLoadings[j];
 					}
 				}
 			}
 
-			for (int i = 0; i < anchors.length; i++) {
-				if (anchData[i] == null) {
-					System.err.println("Error - data for anchor '" + anchors[i] + "' not found in " + factorfile);
+			for (int i = 0; i < cases.length; i++) {
+				if (caseData[i] == null) {
+					System.err.println("Error - data for anchor '" + cases[i] + "' not found in " + factorfile);
 				}
 			}
-			for (int i = 0; i < barnacles.length; i++) {
-				if (barnData[i] == null) {
-					System.err.println("Error - data for barnacle '" + barnacles[i] + "' not found in " + factorfile);
+			for (int i = 0; i < controls.length; i++) {
+				if (controlData[i] == null) {
+					System.err.println("Error - data for barnacle '" + controls[i] + "' not found in " + factorfile);
 				}
 			}
 
 			System.out.println("Initialized in " + ext.getTimeElapsed(time));
 			time = new Date().getTime();
-			dists = Matrix.doubleMatrix(anchors.length, barnacles.length, -999);
-			for (int i = 0; i < anchors.length; i++) {
-				for (int j = 0; j < barnacles.length; j++) {
-					dists[i][j] = Distance.euclidean(anchData[i], barnData[j]);
+			dists = Matrix.doubleMatrix(cases.length, controls.length, -999);
+			for (int i = 0; i < cases.length; i++) {
+				for (int j = 0; j < controls.length; j++) {
+					if (caseData[i] == null || controlData[j] == null) {
+						dists[i][j] = Double.NaN;
+					} else {
+						dists[i][j] = Distance.euclidean(caseData[i], controlData[j]);
+					}
 				}
 			}
 			System.out.println("Finished euclidean calculations in " + ext.getTimeElapsed(time));
@@ -141,10 +143,10 @@ public class MatchSamples {
 				writer = Files.openAppropriateWriter(dir + filename);
 				// writer = new PrintWriter(new
 				// FileWriter(dir+"distances_1-100.xln"));
-				writer.println(anchors.length + "\t" + barnacles.length);
-				writer.println("Anchor\t" + ArrayUtils.toStr(barnacles));
-				for (int i = 0; i < anchors.length; i++) {
-					writer.println(anchors[i] + "\t" + ArrayUtils.toStr(dists[i]));
+				writer.println(cases.length + "\t" + controls.length);
+				writer.println("Anchor\t" + ArrayUtils.toStr(controls));
+				for (int i = 0; i < cases.length; i++) {
+					writer.println(cases[i] + "\t" + ArrayUtils.toStr(dists[i]));
 				}
 				writer.close();
 			} catch (Exception e) {
@@ -159,16 +161,16 @@ public class MatchSamples {
 			try {
 				reader = new BufferedReader(new FileReader(dir + filename));
 				line = reader.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
-				anchors = new String[Integer.parseInt(line[0])];
-				barnacles = new String[Integer.parseInt(line[1])];
-				newDists = Matrix.doubleMatrix(anchors.length, barnacles.length, -999);
+				cases = new String[Integer.parseInt(line[0])];
+				controls = new String[Integer.parseInt(line[1])];
+				newDists = Matrix.doubleMatrix(cases.length, controls.length, -999);
 				line = reader.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
-				for (int i = 0; i < barnacles.length; i++) {
-					barnacles[i] = line[i + 1];
+				for (int i = 0; i < controls.length; i++) {
+					controls[i] = line[i + 1];
 				}
-				for (int i = 0; i < anchors.length; i++) {
+				for (int i = 0; i < cases.length; i++) {
 					line = reader.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
-					anchors[i] = line[0];
+					cases[i] = line[0];
 					newDists[i] = ArrayUtils.toDoubleArray(ArrayUtils.subArray(line, 1));
 				}
 				reader.close();
@@ -184,6 +186,23 @@ public class MatchSamples {
 		time = new Date().getTime();
 
 		return filename;
+	}
+	
+	public static String[] samplesFileToStringArray(String samplesFile, int caseOrControl) {
+		Vector<String> v = new Vector<String>();
+		try (BufferedReader reader = Files.getAppropriateReader(samplesFile)){
+			String line = reader.readLine();
+			while (line != null) {
+				
+				if (Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl){
+					v.add(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0]);
+				}
+			}
+		} catch (IOException ioe) {
+			System.out.println("Couldn't find samples file.");
+			ioe.printStackTrace();
+		}
+		return v.toArray(new String[0]);
 	}
 
 	public static void parseClusterfile(String dir, String anchorList, String barnacleList, String clusterfile) {
@@ -998,8 +1017,7 @@ public class MatchSamples {
 		try {
 			String matchesDirectory = this.dir + "matches" + "/";
 			Files.ensurePathExists(matchesDirectory);
-			distanceMatrix = MatchSamples.matchMaker(matchesDirectory, "/../" + this.casesFile,
-					"/../" + this.controlsFile, "/../" + this.factorsFile, this.cols, this.loadings, true);
+			distanceMatrix = MatchSamples.matchMaker(matchesDirectory, "/../" + this.samplesFile, "/../" + this.factorsFile, this.cols, this.loadings, true);
 
 			String p;
 			pairsFile = MatchSamples.matchPairs(matchesDirectory, distanceMatrix, minMin, iterations);
@@ -1009,7 +1027,6 @@ public class MatchSamples {
 			} else {
 				p = pairsFile.split("_maxMin")[0] + ".xln";
 			}
-			// TODO: age and sex matching is broken with new pairs file change
 			/*
 			 * if (!this.skipAge) {
 			 * MatchSamples.evalAgeSex_and_MDS_separately(matchesDirectory, pairsFile, p,
@@ -1028,8 +1045,7 @@ public class MatchSamples {
 	public static void main(String[] args) {
 		int numArgs = args.length;
 		String d = "./";
-		String casesFile = "cases.txt";
-		String controlsFile = "controls.txt";
+		String samplesFile = "samples.txt";
 		String factorsFile = "factors.txt";
 		String minOrMax = "minmin";
 		String[] factorNames = new String[] { "PC1", "PC2" };
@@ -1052,8 +1068,7 @@ public class MatchSamples {
 		int iterations = 1;
 
 		String usage = "\n" + "gwas.MatchSamples requires 0-1 arguments\n" + "   (0) directory (i.e. dir=" + d
-				+ " (default))\n" + "   (1) cases (i.e. cases=" + casesFile + " (default))\n"
-				+ "   (2) controls (i.e. controls=" + controlsFile + " (default))\n"
+				+ " (default))\n" + "   (1) sample file with cases (1)  and controls (0) (i.e. samples=" + samplesFile + " (default))\n"
 				+ "   (3) file with factors (i.e. factors=" + factorsFile + " (default))\n"
 				+ " (4) column names of factors in clusterfile (i.e. columns=" + ArrayUtils.toStr(factorNames, ",")
 				+ " (default))\n" + "   (5) clusterfile (i.e. clusterfile=" + clusterfile + " (default))\n"
@@ -1061,7 +1076,9 @@ public class MatchSamples {
 				+ "   (7) minMin or maxMin (i.e. minOrMax=minMin (default))\n" + ""
 				+ "   (8) skipVisualizer - use this if submitting a non-interactive job (i.e. skipVisualizer=false (default))\n"
 				+ "   (9) skipAgeSex - skip matching that uses age and sex (i.e. skipAgeSex=true (default))\n" + ""
-				+ "   (10) -visOnly - use this flag to skip matching and only visualize.\n" + "";
+				+ "   (10) -visOnly - use this flag to skip matching and only visualize.\n" + ""
+				+ "   (11) resultsToVis - used with visOnly flag to point to results file.\n" + ""
+				+ "   (12) hideExtraControls - hide unmatched controls in visualizer (i.e. hideExtraControls=false (default)).\n" + "";
 
 		for (String arg : args) {
 			if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -1070,11 +1087,8 @@ public class MatchSamples {
 			} else if (arg.startsWith("dir=")) {
 				d = arg.split("=")[1];
 				numArgs--;
-			} else if (arg.startsWith("cases=")) {
-				casesFile = arg.split("=")[1];
-				numArgs--;
-			} else if (arg.startsWith("controls=")) {
-				controlsFile = arg.split("=")[1];
+			} else if (arg.startsWith("samples=")) {
+				samplesFile = arg.split("=")[1];
 				numArgs--;
 			} else if (arg.startsWith("factors=")) {
 				factorsFile = arg.split("=")[1];
@@ -1100,7 +1114,7 @@ public class MatchSamples {
 			} else if (arg.startsWith("-visOnly")) {
 				visOnly = true;
 				numArgs--;
-			} else if (arg.startsWith("resultsFileNameToVis=")){
+			} else if (arg.startsWith("resultsToVis=")){
 				resultsToVis = arg.split("=")[1];
 				numArgs--;
 			}  else if (arg.startsWith("hideExtraControls=")){
@@ -1120,7 +1134,7 @@ public class MatchSamples {
 				visFile = buildVisFile(d, resultsToVis, i);
 				int[] factorIndices = ext.indexFactors(factorNames,
 						Files.getHeaderOfFile(d + factorsFile, PSF.Regex.GREEDY_WHITESPACE, log), false, log, true);
-				new MatchesVisualized(d, casesFile, controlsFile, factorsFile,
+				new MatchesVisualized(d, samplesFile, factorsFile,
 						new int[] { factorIndices[0], factorIndices[1] }, visFile, hideExtraControls);
 
 			}
@@ -1151,7 +1165,7 @@ public class MatchSamples {
 				skipAge = false;
 			}
 
-			MatchSamples match = new MatchSamples(d, casesFile, controlsFile, factorsFile, factorNames, factorLoadings,
+			MatchSamples match = new MatchSamples(d, samplesFile, factorsFile, factorNames, factorLoadings,
 					minOrMax, skipVis, skipAge);
 			Logger log = new Logger();
 			String pairs = match.run(iterations, log);
@@ -1162,7 +1176,7 @@ public class MatchSamples {
 					visFile = buildVisFile(d, pairs, i);
 					int[] factorIndices = ext.indexFactors(factorNames,
 							Files.getHeaderOfFile(d + factorsFile, PSF.Regex.GREEDY_WHITESPACE, log), false, log, true);
-					new MatchesVisualized(match.dir, casesFile, controlsFile, factorsFile,
+					new MatchesVisualized(match.dir, samplesFile, factorsFile,
 							new int[] { factorIndices[0], factorIndices[1] }, visFile, hideExtraControls);
 
 				}
