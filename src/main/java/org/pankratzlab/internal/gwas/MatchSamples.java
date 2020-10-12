@@ -129,11 +129,7 @@ public class MatchSamples {
 			dists = Matrix.doubleMatrix(cases.length, controls.length, -999);
 			for (int i = 0; i < cases.length; i++) {
 				for (int j = 0; j < controls.length; j++) {
-					if (caseData[i] == null || controlData[j] == null) {
-						dists[i][j] = Double.NaN;
-					} else {
-						dists[i][j] = Distance.euclidean(caseData[i], controlData[j]);
-					}
+					dists[i][j] = Distance.euclidean(caseData[i], controlData[j]);
 				}
 			}
 			System.out.println("Finished euclidean calculations in " + ext.getTimeElapsed(time));
@@ -197,6 +193,7 @@ public class MatchSamples {
 				if (Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl){
 					v.add(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0]);
 				}
+				line = reader.readLine();
 			}
 		} catch (IOException ioe) {
 			System.out.println("Couldn't find samples file.");
