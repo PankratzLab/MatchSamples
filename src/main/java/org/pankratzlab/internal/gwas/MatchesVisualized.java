@@ -47,8 +47,8 @@ public class MatchesVisualized {
 		this.hideExtraControls = hideExtraControls;
 
 		time = new Date().getTime();
-		cases = MatchSamples.samplesFileToStringArray(samplesFile, 1);
-		controls = MatchSamples.samplesFileToStringArray(samplesFile, 0);
+		cases = MatchSamples.samplesFileToStringArray(samplesFile, factorfile, 1);
+		controls = MatchSamples.samplesFileToStringArray(samplesFile, factorfile, 0);
 
 		hash = HashVec.loadFileToHashString(dir + factorfile, 0, factorIndices, "\t", true);
 

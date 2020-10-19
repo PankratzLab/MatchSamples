@@ -80,9 +80,9 @@ public class MatchSamples {
 		if (!new File(dir + filename).exists()) {
 			System.out.println("Creating " + filename);
 			time = new Date().getTime();
-			cases = samplesFileToStringArray(dir + samplesFile, 1);
+			cases = samplesFileToStringArray(dir + samplesFile, dir + factorfile, 1);
 			caseData = new double[cases.length][];
-			controls = samplesFileToStringArray(dir + samplesFile, 0);
+			controls = samplesFileToStringArray(dir + samplesFile, dir + factorfile, 0);
 			controlData = new double[controls.length][];
 
 			factorIndices = ext.indexFactors(factorTargets,
@@ -184,19 +184,32 @@ public class MatchSamples {
 		return filename;
 	}
 	
-	public static String[] samplesFileToStringArray(String samplesFile, int caseOrControl) {
+	public static String[] samplesFileToStringArray(String samplesFile, String factorFile, int caseOrControl) {
+		Set<String> validSamples = new HashSet<String>();
+		try (BufferedReader r = Files.getAppropriateReader(factorFile)){
+			String id = r.readLine();
+			while (id != null) {
+				validSamples.add(id.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0]);
+				id = r.readLine();
+			}
+		} catch (IOException e) {
+			System.out.println("Couldn't find factors file: " + factorFile);
+			e.printStackTrace();
+		}
+		
 		Vector<String> v = new Vector<String>();
 		try (BufferedReader reader = Files.getAppropriateReader(samplesFile)){
 			String line = reader.readLine();
+			String sample;
 			while (line != null) {
-				
-				if (Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl){
+				sample = line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0];
+				if ((Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl) && validSamples.contains(sample)){
 					v.add(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0]);
 				}
 				line = reader.readLine();
 			}
 		} catch (IOException ioe) {
-			System.out.println("Couldn't find samples file.");
+			System.out.println("Couldn't find samples file: " + samplesFile);
 			ioe.printStackTrace();
 		}
 		return v.toArray(new String[0]);
