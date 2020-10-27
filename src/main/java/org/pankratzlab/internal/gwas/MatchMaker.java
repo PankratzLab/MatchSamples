@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -36,16 +37,16 @@ public class MatchMaker {
 
 		KDTree<Sample> kdTree = new KDTree<>(factorLoadings.getDoubleLoadings().size());
 		log.info("Assuming 1 ID column and " + (factorLoadings.getDoubleLoadings().size()) + " data columns");
-		log.info("Building tree for: " + caseList.get(1).getGroup());
+		log.info("Building tree for: " + caseList.get(0).getGroup());
 
 		KDTree.addSamplesToTree(kdTree, controlList.stream());
 
-		log.info("selecting initial " + initialNumSelect + " nearest neighbors for " + caseList.get(1).getGroup());
+		log.info("selecting initial " + initialNumSelect + " nearest neighbors for " + caseList.get(0).getGroup());
 
 		List<Match> naiveMatches = KDTree.getNearestNeighborsForSamples(kdTree, caseList.stream(), initialNumSelect)
 				.collect(Collectors.toList());
 
-		String outputBase = baseDir + File.separator + caseList.get(1).getGroup() + "match.naive.txt.gz";
+		String outputBase = baseDir + File.separator + caseList.get(0).getGroup() + "_match.naive.txt.gz";
 		log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to " + outputBase);
 		try {
 			KDMatch.writeToFile(naiveMatches.stream(), outputBase,
@@ -55,7 +56,7 @@ public class MatchMaker {
 			e.printStackTrace();
 		}
 
-		String outputOpt = baseDir + File.separator + caseList.get(1).getGroup() + "match.optimized.txt.gz";
+		String outputOpt = baseDir + File.separator + caseList.get(0).getGroup() + "_match.optimized.txt.gz";
 
 		log.info("selecting optimized nearest neighbors");
 
@@ -77,6 +78,26 @@ public class MatchMaker {
 		return optimizedMatches;
 
 	}
+	
+  private static Sample parseSample(String[] sampleLine, int idCol,
+                                    int[] numericColumnsToUseForClustering,
+                                    int[] factorColumnsToAssignGroup,
+                                    FactorLoadings factorLoadings) {
+    StringJoiner group = new StringJoiner("_");
+    String id = sampleLine[idCol];
+    int status = Integer.parseInt(sampleLine[idCol + 1]);
+    double[] dim = new double[numericColumnsToUseForClustering.length];
+    for (int i = 0; i < dim.length; i++) {
+      // TODO improve: This isn't great - I think it requires the factors input argument from user
+      // to be in file column order
+      dim[i] = Double.parseDouble(sampleLine[numericColumnsToUseForClustering[i]])
+               * factorLoadings.getDoubleLoadings().get(i);
+    }
+    for (int i = 0; i < factorColumnsToAssignGroup.length; i++) {
+      group.add(sampleLine[factorColumnsToAssignGroup[i]]);
+    }
+    return new Sample(id, dim, status, group.toString());
+  }
 
 	public static void runMatching(Path dir, Path inputSamples, FactorLoadings factorLoadings, int initialNumSelect,
 			int finalNumSelect, int threads, Logger log) throws IOException {
@@ -86,8 +107,9 @@ public class MatchMaker {
 		int idColumn = 0;
 		Map<String, List<Sample>> casesGroupedByStringFactor = new HashMap<String, List<Sample>>();
 		Map<String, List<Sample>> controlsGroupedByStringFactor = new HashMap<String, List<Sample>>();
-		Files.lines(inputSamples).map(l -> l.split("\t")).skip(1).map(k -> Sample.parseSample(k, idColumn,
-				numericColumnsToUseForClustering, factorColumnsToAssignGroup, factorLoadings))
+    Files.lines(inputSamples).map(l -> l.split("\t")).skip(1)
+         .map(k -> parseSample(k, idColumn, numericColumnsToUseForClustering,
+                               factorColumnsToAssignGroup, factorLoadings))
 				.filter(Sample::isValidCaseOrControl).forEach(s -> {
 					if (s.isCase()) {
 						if (!casesGroupedByStringFactor.containsKey(s.getGroup())) {
@@ -194,8 +216,8 @@ public class MatchMaker {
 				finalNumSelect = Integer.parseInt(arg.split("=")[1]);
 			}
 		}
-		int initialNumSelect = finalNumSelect * 5;
-		samples = Paths.get(d.toString() + "\\" + samples.toString());
+		int initialNumSelect = finalNumSelect * 20;
+    samples = Paths.get(d.toString() + File.separator + samples.toString());
 		log = Logger.getAnonymousLogger();
 		log.info("Starting sample match using k-d tree nearest neighbors.");
 
