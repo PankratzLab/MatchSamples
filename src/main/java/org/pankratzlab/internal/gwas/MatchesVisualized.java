@@ -50,7 +50,7 @@ public class MatchesVisualized {
 		cases = MatchSamples.samplesFileToStringArray(samplesFile, factorfile, 1);
 		controls = MatchSamples.samplesFileToStringArray(samplesFile, factorfile, 0);
 
-		hash = HashVec.loadFileToHashString(dir + factorfile, 0, factorIndices, "\t", true);
+		hash = HashVec.loadFileToHashString(factorfile, 0, factorIndices, "\t", true);
 
 		data = new double[cases.length + controls.length][factorIndices.length];
 		for (int i = 0; i < cases.length; i++) {
@@ -66,7 +66,7 @@ public class MatchesVisualized {
 		}
 		data = Matrix.transpose(trans);
 
-		v = HashVec.loadFileToVec(dir + pairings, true, false, false);
+		v = HashVec.loadFileToVec(pairings, true, false, false);
 		if (v.size() != cases.length) {
 			System.err.println("Error - number of pairings (" + v.size() + ") doesn't match number of anchors loaded ("
 					+ cases.length + ")");

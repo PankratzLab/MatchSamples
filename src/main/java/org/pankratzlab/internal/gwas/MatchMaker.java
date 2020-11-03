@@ -3,24 +3,32 @@ package org.pankratzlab.internal.gwas;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.io.FileUtils;
 import org.pankratzlab.common.ArrayUtils;
+import org.pankratzlab.common.HashVec;
+import org.pankratzlab.common.Matrix;
+import org.pankratzlab.common.PSF;
 import org.pankratzlab.internal.gwas.FactorLoadings;
 import org.pankratzlab.kdmatch.KDMatch;
 import org.pankratzlab.kdmatch.KDTree;
@@ -29,6 +37,7 @@ import org.pankratzlab.kdmatch.Sample;
 import org.pankratzlab.kdmatch.SelectOptimizedNeighbors;
 
 import com.google.common.collect.Sets;
+import com.google.common.primitives.Ints;
 
 public class MatchMaker {
 
@@ -46,7 +55,7 @@ public class MatchMaker {
 		List<Match> naiveMatches = KDTree.getNearestNeighborsForSamples(kdTree, caseList.stream(), initialNumSelect)
 				.collect(Collectors.toList());
 
-		String outputBase = baseDir + File.separator + caseList.get(0).getGroup() + "_match.naive.txt.gz";
+		String outputBase = baseDir + File.separator + "match.naive.txt";
 		log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to " + outputBase);
 		try {
 			KDMatch.writeToFile(naiveMatches.stream(), outputBase,
@@ -56,16 +65,17 @@ public class MatchMaker {
 			e.printStackTrace();
 		}
 
-		String outputOpt = baseDir + File.separator + caseList.get(0).getGroup() + "_match.optimized.txt.gz";
+		String outputOpt = baseDir + File.separator + "match.optimized.txt";
 
 		log.info("selecting optimized nearest neighbors");
 
 		List<Match> optimizedMatches = null;
 		try {
-			optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect,
-					threads, log).collect(Collectors.toList());
+			optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect, threads, log)
+					.collect(Collectors.toList());
 			log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to " + outputOpt);
-			KDMatch.writeToFile(optimizedMatches.stream(), outputOpt, factorLoadings.getDoubleFactorNames().toArray(new String[1]),
+			KDMatch.writeToFile(optimizedMatches.stream(), outputOpt,
+					factorLoadings.getDoubleFactorNames().toArray(new String[1]),
 					factorLoadings.getDoubleFactorNames().toArray(new String[1]), finalNumSelect);
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
@@ -74,42 +84,46 @@ public class MatchMaker {
 		} catch (IOException e3) {
 			e3.printStackTrace();
 		}
-		
+
 		return optimizedMatches;
 
 	}
-	
-  private static Sample parseSample(String[] sampleLine, int idCol,
-                                    int[] numericColumnsToUseForClustering,
-                                    int[] factorColumnsToAssignGroup,
-                                    FactorLoadings factorLoadings) {
-    StringJoiner group = new StringJoiner("_");
-    String id = sampleLine[idCol];
-    int status = Integer.parseInt(sampleLine[idCol + 1]);
-    double[] dim = new double[numericColumnsToUseForClustering.length];
-    for (int i = 0; i < dim.length; i++) {
-      // TODO improve: This isn't great - I think it requires the factors input argument from user
-      // to be in file column order
-      dim[i] = Double.parseDouble(sampleLine[numericColumnsToUseForClustering[i]])
-               * factorLoadings.getDoubleLoadings().get(i);
-    }
-    for (int i = 0; i < factorColumnsToAssignGroup.length; i++) {
-      group.add(sampleLine[factorColumnsToAssignGroup[i]]);
-    }
-    return new Sample(id, dim, status, group.toString());
-  }
+
+	private static Sample parseSample(String[] sampleLine, int idCol, int[] numericColumnsToUseForClustering,
+			int[] factorColumnsToAssignGroup, FactorLoadings factorLoadings) {
+		StringJoiner group = new StringJoiner("_");
+		String id = sampleLine[idCol];
+		int status = Integer.parseInt(sampleLine[idCol + 1]);
+		double[] dim = new double[numericColumnsToUseForClustering.length];
+		for (int i = 0; i < dim.length; i++) {
+			// TODO improve: This isn't great - I think it requires the factors input
+			// argument from user
+			// to be in file column order
+			dim[i] = Double.parseDouble(sampleLine[numericColumnsToUseForClustering[i]])
+					* factorLoadings.getDoubleLoadings().get(i);
+		}
+		for (int i = 0; i < factorColumnsToAssignGroup.length; i++) {
+			group.add(sampleLine[factorColumnsToAssignGroup[i]]);
+		}
+		return new Sample(id, dim, status, group.toString());
+	}
 
 	public static void runMatching(Path dir, Path inputSamples, FactorLoadings factorLoadings, int initialNumSelect,
-			int finalNumSelect, int threads, Logger log) throws IOException {
+			int finalNumSelect, int threads, boolean normalize, Logger log) throws IOException {
+		
+		if (normalize) {
+			inputSamples = normalizeFactors(dir, inputSamples, factorLoadings, log);
+			log.info("Normalized input factors and wrote to file: " + inputSamples.toString());
+		}
+		
 		int[] numericColumnsToUseForClustering = getLoadingIndices(inputSamples, factorLoadings.getFactors(), false,
 				log);
 		int[] factorColumnsToAssignGroup = getLoadingIndices(inputSamples, factorLoadings.getFactors(), true, log);
 		int idColumn = 0;
 		Map<String, List<Sample>> casesGroupedByStringFactor = new HashMap<String, List<Sample>>();
 		Map<String, List<Sample>> controlsGroupedByStringFactor = new HashMap<String, List<Sample>>();
-    Files.lines(inputSamples).map(l -> l.split("\t")).skip(1)
-         .map(k -> parseSample(k, idColumn, numericColumnsToUseForClustering,
-                               factorColumnsToAssignGroup, factorLoadings))
+		Files.lines(inputSamples).map(l -> l.split("\t")).skip(1).map(k -> parseSample(k, idColumn,
+				numericColumnsToUseForClustering, factorColumnsToAssignGroup, factorLoadings))
 				.filter(Sample::isValidCaseOrControl).forEach(s -> {
 					if (s.isCase()) {
 						if (!casesGroupedByStringFactor.containsKey(s.getGroup())) {
@@ -128,6 +142,61 @@ public class MatchMaker {
 				.map(e -> kdMatchMaker(dir, e.getValue(), controlsGroupedByStringFactor.get(e.getKey()),
 						initialNumSelect, finalNumSelect, factorLoadings, threads, log))
 				.flatMap(List::stream).collect(Collectors.toList());
+		
+		
+		
+	}
+
+	private static Path normalizeFactors(Path dir, Path inputSamples, FactorLoadings factors, Logger log) throws IOException {
+		String normalizedSamples = dir + "/normalized.txt";
+		String[][] matrix;
+		double[][] allData;
+		int[] factorIndices = getLoadingIndices(inputSamples, factors.getFactors(), false,
+				log);
+		matrix = HashVec.loadFileToStringMatrix(inputSamples.toString(), true, factorIndices, PSF.Regex.GREEDY_WHITESPACE,
+				1000, false);
+		
+		allData = new double[factorIndices.length][];
+		for (int i = 0; i < factors.getFactors().keySet().size(); i++) {
+			allData[i] = ArrayUtils.toDoubleArray(Matrix.extractColumn(matrix, i));
+			allData[i] = ArrayUtils.normalize(allData[i]);
+		}
+		BufferedReader inputReader = org.pankratzlab.common.Files
+				.getAppropriateReader(inputSamples.toString());
+		PrintWriter normResults = org.pankratzlab.common.Files
+				.getAppropriateWriter(normalizedSamples);
+		String inputLine = inputReader.readLine();
+		String[] header = inputLine.trim().split(PSF.Regex.GREEDY_WHITESPACE);
+		normResults.println(inputLine); // header
+		String[] line;
+		int row = 0;
+		inputLine = inputReader.readLine(); // go past header
+		while (inputLine != null) {
+			line = inputLine.trim().split(PSF.Regex.GREEDY_WHITESPACE);
+			StringJoiner join = new StringJoiner("\t");
+			Boolean normalizedColumn = false;
+			int normColIndex = 0;
+			for (int i = 0; i < header.length; i++) {
+				for (int f : factorIndices) {
+					if (f == i) {
+						normalizedColumn = true;
+						normColIndex = Ints.indexOf(factorIndices, i);
+					}
+				}
+				if (normalizedColumn) {
+					join.add(allData[normColIndex][row] + "");
+				} else {
+					join.add(line[i]);
+				}
+				normalizedColumn = false;
+			}
+			row++;
+			normResults.println(join);
+			inputLine = inputReader.readLine();
+		}
+		normResults.close();
+		return Paths.get(normalizedSamples);
+		
 	}
 
 	private static int[] getLoadingIndices(Path sampleFile, Map<String, String> factorLoadings, boolean force,
@@ -178,6 +247,70 @@ public class MatchMaker {
 		}
 		return loadingIndices;
 	}
+	
+	public static String buildVisHelpers(Path dir, Path fullResultsFile, Path samplesFile, int currentIteration, Logger log) throws IOException {
+		Path visDir = Paths.get(dir + "/visual_helpers/");
+		if (!visDir.toFile().exists()) {
+			Files.createDirectory(visDir);
+		}
+		
+		Path tempVisHelperFile = Paths.get(visDir + "/vis_helper_" + (currentIteration + 1) + ".temp");
+		Path tempFactorsHelperFile = Paths.get(visDir + "/vis_helper_factors.temp");
+		
+		File f = tempVisHelperFile.toFile();
+		File f2 = tempFactorsHelperFile.toFile();
+		if (f.exists()) {
+			f.delete();
+		}
+		if (f2.exists()) {
+			f2.delete();
+		}
+		
+		PrintWriter factorsHelperWriter;
+		Vector<String> factorsData = HashVec.loadFileToVec(samplesFile.toString(), false, false, true);
+		factorsHelperWriter = org.pankratzlab.common.Files.getAppropriateWriter(tempFactorsHelperFile.toString());
+		String[] factorsLine = factorsData.elementAt(0).split(PSF.Regex.GREEDY_WHITESPACE);
+		StringJoiner header = new StringJoiner("\t");
+		for (int i = 0; i < factorsLine.length; i++) {
+			if (i != 1) {
+				header.add(factorsLine[i]);
+			}
+		}
+		factorsHelperWriter.println(header);
+		for (int i = 1; i < factorsData.size(); i++) {
+			factorsLine = factorsData.elementAt(i).trim().split(PSF.Regex.GREEDY_WHITESPACE);
+			StringJoiner newLine = new StringJoiner("\t");
+			for (int s = 0; s < factorsLine.length; s++) {
+				if (s != 1) {
+					newLine.add(factorsLine[s]);
+				}
+			}
+			factorsHelperWriter.println(newLine);
+		}
+		factorsHelperWriter.close();
+		
+		PrintWriter visHelperWriter;
+		int controlColumn = -1;
+		Vector<String> data = HashVec.loadFileToVec(fullResultsFile.toString(), false, false, true);
+		visHelperWriter = org.pankratzlab.common.Files.getAppropriateWriter(tempVisHelperFile.toString());
+		String[] line;
+		visHelperWriter.println("Case\tControl\tDistance");
+		line = data.elementAt(0).trim().split(PSF.Regex.GREEDY_WHITESPACE);
+		int index = 0;
+		for (String s : line) {
+			if (s.equalsIgnoreCase("control_" + (currentIteration + 1) + "_id")) {
+				controlColumn = index;
+				break;
+			}
+			index++;
+		}
+		for (int i = 1; i < data.size(); i++) {
+			line = data.elementAt(i).trim().split(PSF.Regex.GREEDY_WHITESPACE);
+			visHelperWriter.println(line[0] + "\t" + line[controlColumn] + "\t" + line[controlColumn + 1]);
+		}
+		visHelperWriter.close();
+		return tempVisHelperFile.toString();
+	}
 
 	public static void main(String[] args) {
 
@@ -188,6 +321,7 @@ public class MatchMaker {
 		int numArgs = args.length;
 		int finalNumSelect = 4;
 		int threads = Runtime.getRuntime().availableProcessors();
+		boolean vis = false;
 		Logger log;
 
 		String usage = "\n" + "gwas.MatchMaker requires at least 1 argument\n"
@@ -195,7 +329,9 @@ public class MatchMaker {
 				+ "(2) Samples filename with ID column, case/control column (1/0), and factor columns (e.g. samples=samples.txt (default))\n"
 				+ "(3) Factors columns to use and their loadings; *keep in file order (e.g. factors=PC1:4,PC2:4,sex:force,phenograph:force)\n"
 				+ "(4) Normalize inputs (e.g. normalize=true (default))\n"
-				+ "(5) Iterations - number of controls to match to each case (e.g. iterations=4 (default))\n";
+				+ "(5) Iterations - number of controls to match to each case (e.g. iterations=4 (default))\n"
+				+ "(6) Normalize the input factors before matching (e.g. normalize=true (default))\n"
+				+ "(7) Visualize results - (e.g. vis=false (default))\n";
 
 		for (String arg : args) {
 			if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -214,15 +350,33 @@ public class MatchMaker {
 				normalize = Boolean.parseBoolean(arg.split("=")[1]);
 			} else if (arg.startsWith("iterations=")) {
 				finalNumSelect = Integer.parseInt(arg.split("=")[1]);
+			} else if (arg.startsWith("normalize=")) {
+				normalize = Boolean.parseBoolean(arg.split("=")[1]);
+			} else if (arg.startsWith("vis=")) {
+				vis = Boolean.parseBoolean(arg.split("=")[1]);
 			}
 		}
-		int initialNumSelect = finalNumSelect * 20;
-    samples = Paths.get(d.toString() + File.separator + samples.toString());
+		int initialNumSelect = finalNumSelect * 5;
+		samples = Paths.get(d.toString() + File.separator + samples.toString());
 		log = Logger.getAnonymousLogger();
 		log.info("Starting sample match using k-d tree nearest neighbors.");
 
 		try {
-			runMatching(d, samples, factorLoadings, initialNumSelect, finalNumSelect, threads, log);
+			File naive = new File(d + "/match.naive.txt");
+			File optimized = new File(d + "/match.optimized.txt");
+			if(naive.exists() || optimized.exists()) { 
+			    log.info("Output already exists.");
+			    System.exit(0);
+			}
+			runMatching(d, samples, factorLoadings, initialNumSelect, finalNumSelect, threads, normalize, log);
+			if (vis) {
+				for (int i = 0; i < finalNumSelect; i++) {
+					buildVisHelpers(d, Paths.get(optimized.toString()), samples, i, log);
+					new MatchesVisualized(d.toString(), samples.toString(), d + "/visual_helpers/vis_helper_factors.temp",
+							getLoadingIndices(samples, factorLoadings.getFactors(), false,
+									log), d + "/visual_helpers/vis_helper_" + (i + 1) + ".temp", true);
+				}
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

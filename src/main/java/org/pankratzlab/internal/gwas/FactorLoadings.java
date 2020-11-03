@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 public class FactorLoadings {
@@ -40,11 +41,11 @@ public class FactorLoadings {
 	
 	public ArrayList<String> getDoubleFactorNames(){
 		ArrayList<String> doubleFactorNames = new ArrayList<String>();
-		for (String s : factorLoadings.keySet()) {
-			if (ACCEPTED_LOADINGS.contains(s)) {
+		for (Entry<String, String> s : factorLoadings.entrySet()) {
+			if (ACCEPTED_LOADINGS.contains(s.getValue())) {
 				continue;
 			} else {
-				doubleFactorNames.add(s);
+				doubleFactorNames.add(s.getKey());
 			}
 		}
 		return doubleFactorNames;

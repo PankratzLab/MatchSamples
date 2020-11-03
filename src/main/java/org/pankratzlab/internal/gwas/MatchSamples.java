@@ -222,6 +222,9 @@ public class MatchSamples {
 		try (BufferedReader reader = Files.getAppropriateReader(samplesFile)){
 			String line = reader.readLine();
 			String sample;
+			if (line.contains("status")) {
+				line = reader.readLine();
+			}
 			while (line != null) {
 				sample = line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0];
 				if ((Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl) && validSamples.contains(sample)){
