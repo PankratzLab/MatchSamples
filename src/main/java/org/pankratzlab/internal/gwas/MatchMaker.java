@@ -502,6 +502,7 @@ public class MatchMaker {
 		int multiplier = 5;
 		int threads = Runtime.getRuntime().availableProcessors();
 		boolean vis = false;
+		boolean onlyBuildVisFiles = false;
 		LinkedHashMap<String, String> evalArgs;
 		Logger log;
 
@@ -513,8 +514,9 @@ public class MatchMaker {
 				+ "(5) Iterations - number of controls to match to each case (e.g. iterations=4 (default))\n"
 				+ "(6) Multiplier - naive matching multiplier (e.g. multiplier=5 (default))\n"
 				+ "(7) Normalize the input factors before matching (e.g. normalize=true (default))\n"
-				+ "(7) Eval - which arguments you want to check for concordance (e.g. eval=age,sex:nominal (default))\n"
-				+ "(8) Visualize results - (e.g. vis=false (default))\n";
+				+ "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex:nominal (default))\n"
+				+ "(9) Visualize results - (e.g. vis=false (default))\n"
+				+ "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n";
 
 		for (String arg : args) {
 			if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -541,7 +543,9 @@ public class MatchMaker {
 				normalize = Boolean.parseBoolean(arg.split("=")[1]);
 			} else if (arg.startsWith("vis=")) {
 				vis = Boolean.parseBoolean(arg.split("=")[1]);
-			}
+			} else if (arg.startsWith("onlyBuildVisFiles=")) {
+				onlyBuildVisFiles = Boolean.parseBoolean(arg.split("=")[1]);
+			} 
 		}
 		int initialNumSelect = finalNumSelect * multiplier;
 		samples = Paths.get(d.toString() + File.separator + samples.toString());
@@ -569,9 +573,11 @@ public class MatchMaker {
 				}
 				for (int i = 0; i < finalNumSelect; i++) {
 					buildVisHelpers(d, Paths.get(optimized.toString()), samples, i, log);
-					new MatchesVisualized(d.toString(), samples.toString(),
-							d + "/visual_helpers/vis_helper_factors.temp", loadingIndicesForVis,
-							d + "/visual_helpers/vis_helper_" + (i + 1) + ".temp", true);
+					if (!onlyBuildVisFiles) {
+						new MatchesVisualized(d.toString(), samples.toString(),
+								d + "/visual_helpers/vis_helper_factors.temp", loadingIndicesForVis,
+								d + "/visual_helpers/vis_helper_" + (i + 1) + ".temp", true);
+					}
 				}
 				// FileUtils.deleteDirectory(new File(d + "/visual_helpers/"));
 			}

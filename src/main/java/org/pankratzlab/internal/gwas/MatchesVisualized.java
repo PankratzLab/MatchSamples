@@ -176,7 +176,8 @@ public class MatchesVisualized {
 				+ "   (3) file with factors (i.e. factors=" + factors + " (default))\n"
 				+ "   (4) indices of factors in clusterfile (i.e. indices=" + ArrayUtils.toStr(factorIndices, ",")
 				+ " (default))\n"
-				+ "   (5) hide extra controls that aren't matched (i.e. hideExtraControls=false (default))\n" + "";
+				+ "   (5) pairings file (case/control matches) (i.e. pairings=)"
+				+ "   (6) hide extra controls that aren't matched (i.e. hideExtraControls=false (default))\n" + "";
 
 		for (String arg : args) {
 			if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -188,7 +189,10 @@ public class MatchesVisualized {
 			} else if (arg.startsWith("samples=")) {
 				samplesFile = arg.split("=")[1];
 				numArgs--;
-			}else if (arg.startsWith("factors=")) {
+			} else if (arg.startsWith("pairings=")) {
+				pairings = arg.split("=")[1];
+				numArgs--;
+			} else if (arg.startsWith("factors=")) {
 				factors = arg.split("=")[1];
 				numArgs--;
 			} else if (arg.startsWith("indices=")) {
