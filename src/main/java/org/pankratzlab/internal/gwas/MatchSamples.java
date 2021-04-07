@@ -6,6 +6,8 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Vector;
 
+import org.pankratzlab.kdmatch.*;
 import org.pankratzlab.common.ArrayUtils;
 import org.pankratzlab.common.DoubleVector;
 import org.pankratzlab.common.Files;
@@ -51,6 +54,24 @@ public class MatchSamples {
 		this.minOrMax = minOrMax;
 		this.skipAge = skipAgeSexMatch;
 	}
+	
+	/*
+	 * public static String kdMatchMaker(Path dir, Path cases, Path controls,
+	 * String[] factorTargets, double[] factorLoadings, boolean normalizeFactors,
+	 * Logger log) throws IOException {
+	 * 
+	 * String[] header =
+	 * java.nio.file.Files.lines(factors).findFirst().get().toString().trim().split(
+	 * "\t"); KDTree<Sample> kdTree = new KDTree<>(header.length - 1);
+	 * 
+	 * log.report("Assuming 1 ID column and " + (header.length - 1) +
+	 * " data columns"); log.report("building tree from " + factors.toString());
+	 * 
+	 * KDTree.addSamplesToTree(kdTree, KDMatch.getSampleStreamFromFile(factors));
+	 * 
+	 * log.report("selecting initial " + initialNumSelect +
+	 * " nearest neighbors for " + inputFileAnchor.toString()); }
+	 */
 
 	public static String matchMaker(String dir, String samplesFile, String factorfile,
 			String[] factorTargets, double[] factorLoadings, boolean normalizeFactors) {
@@ -201,6 +222,9 @@ public class MatchSamples {
 		try (BufferedReader reader = Files.getAppropriateReader(samplesFile)){
 			String line = reader.readLine();
 			String sample;
+			if (line.contains("status")) {
+				line = reader.readLine();
+			}
 			while (line != null) {
 				sample = line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[0];
 				if ((Integer.parseInt(line.trim().split(PSF.Regex.GREEDY_WHITESPACE)[1]) == caseOrControl) && validSamples.contains(sample)){
