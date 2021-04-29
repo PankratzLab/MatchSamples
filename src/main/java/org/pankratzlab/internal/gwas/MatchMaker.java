@@ -43,8 +43,11 @@ import com.google.common.primitives.Ints;
 
 public class MatchMaker {
 
-	private static List<Match> kdMatchMaker(Path baseDir, Path inputSamples, List<Sample> caseList, List<Sample> controlList,
-			HashMap<Integer, Double> numericColumnsToUseForClustering, int initialNumSelect, int finalNumSelect, FactorLoadings factorLoadings, int threads, Logger log) {
+	private static HashMap<String, Integer> samplePhenos;
+
+	private static List<Match> kdMatchMaker(Path baseDir, Path inputSamples, List<Sample> caseList,
+			List<Sample> controlList, HashMap<Integer, Double> numericColumnsToUseForClustering, int initialNumSelect,
+			int finalNumSelect, FactorLoadings factorLoadings, int threads, Logger log) {
 
 		KDTree<Sample> kdTree = new KDTree<>(numericColumnsToUseForClustering.keySet().size());
 		log.info("Assuming 1 ID column and " + (numericColumnsToUseForClustering.keySet().size()) + " data columns");
@@ -62,20 +65,18 @@ public class MatchMaker {
 		LinkedHashSet<String> setConvert = new LinkedHashSet<String>();
 
 		try {
-			BufferedReader headerRead = org.pankratzlab.common.Files
-					.getAppropriateReader(inputSamples.toString());
+			BufferedReader headerRead = org.pankratzlab.common.Files.getAppropriateReader(inputSamples.toString());
 			String[] header = headerRead.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
 			for (int i : numericColumnsToUseForClustering.keySet()) {
 				setConvert.add(header[i]);
 			}
 			try {
-				KDMatch.writeToFile(naiveMatches.stream(), outputBase,
-						setConvert.stream().toArray(String[]::new),
+				KDMatch.writeToFile(naiveMatches.stream(), outputBase, setConvert.stream().toArray(String[]::new),
 						setConvert.stream().toArray(String[]::new), initialNumSelect);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-		} catch (Exception e){
+		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -89,8 +90,7 @@ public class MatchMaker {
 			optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect, threads, log)
 					.collect(Collectors.toList());
 			log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to " + outputOpt);
-			KDMatch.writeToFile(optimizedMatches.stream(), outputOpt,
-					setConvert.stream().toArray(String[]::new),
+			KDMatch.writeToFile(optimizedMatches.stream(), outputOpt, setConvert.stream().toArray(String[]::new),
 					setConvert.stream().toArray(String[]::new), finalNumSelect);
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
@@ -104,20 +104,21 @@ public class MatchMaker {
 
 	}
 
-	private static Sample parseSample(String[] sampleLine, int idCol, HashMap<Integer, Double> numericColumnsToUseForClustering,
-			int[] factorColumnsToAssignGroup, FactorLoadings factorLoadings) {
+	private static Sample parseSample(String[] sampleLine, int idCol,
+			HashMap<Integer, Double> numericColumnsToUseForClustering, int[] factorColumnsToAssignGroup,
+			FactorLoadings factorLoadings) {
 		StringJoiner group = new StringJoiner("_");
 		String id = sampleLine[idCol];
 		int status = Integer.parseInt(sampleLine[idCol + 1]);
+		samplePhenos.put(id, status);
 		double[] dim = new double[numericColumnsToUseForClustering.keySet().size()];
-		//for (int i = 0; i < dim.length; i++) {
+		// for (int i = 0; i < dim.length; i++) {
 		int dimIndex = 0;
 		for (Entry<Integer, Double> e : numericColumnsToUseForClustering.entrySet()) {
 			// TODO improve: This isn't great - I think it requires the factors input
 			// argument from user
 			// to be in file column order
-			dim[dimIndex] = Double.parseDouble(sampleLine[e.getKey()])
-					* e.getValue();
+			dim[dimIndex] = Double.parseDouble(sampleLine[e.getKey()]) * e.getValue();
 			dimIndex++;
 		}
 		for (int i = 0; i < factorColumnsToAssignGroup.length; i++) {
@@ -133,11 +134,13 @@ public class MatchMaker {
 			inputSamples = normalizeFactors(dir, inputSamples, factorLoadings, log);
 			log.info("Normalized input factors and wrote to file: " + inputSamples.toString());
 		}
-		
+
 		inputSamples = handleNominalVariables(dir, inputSamples, factorLoadings);
 
-		HashMap<Integer, Double> numericColumnsToUseForClustering = getNumericColumnsForClustering(inputSamples, factorLoadings);
-		int[] factorColumnsToAssignGroup = getLoadingIndices(inputSamples, factorLoadings.getFactors(), true, true, log);
+		HashMap<Integer, Double> numericColumnsToUseForClustering = getNumericColumnsForClustering(inputSamples,
+				factorLoadings);
+		int[] factorColumnsToAssignGroup = getLoadingIndices(inputSamples, factorLoadings.getFactors(), true, true,
+				log);
 		int idColumn = 0;
 		Map<String, List<Sample>> casesGroupedByStringFactor = new HashMap<String, List<Sample>>();
 		Map<String, List<Sample>> controlsGroupedByStringFactor = new HashMap<String, List<Sample>>();
@@ -158,15 +161,17 @@ public class MatchMaker {
 				});
 		final Path tempInputSamples = inputSamples;
 		List<Match> results = casesGroupedByStringFactor.entrySet().stream()
-				.map(e -> kdMatchMaker(dir, tempInputSamples, e.getValue(), controlsGroupedByStringFactor.get(e.getKey()), numericColumnsToUseForClustering, 
+				.map(e -> kdMatchMaker(dir, tempInputSamples, e.getValue(),
+						controlsGroupedByStringFactor.get(e.getKey()), numericColumnsToUseForClustering,
 						initialNumSelect, finalNumSelect, factorLoadings, threads, log))
 				.flatMap(List::stream).collect(Collectors.toList());
-		
+
 		return inputSamples;
 
 	}
-	
-	public static HashMap<Integer, Double> getNumericColumnsForClustering(Path sampleFile, FactorLoadings factorloadings) {
+
+	public static HashMap<Integer, Double> getNumericColumnsForClustering(Path sampleFile,
+			FactorLoadings factorloadings) {
 		HashMap<Integer, Double> columnsToUse = new HashMap<Integer, Double>();
 		try (BufferedReader origSamplesFile = org.pankratzlab.common.Files
 				.getAppropriateReader(sampleFile.toString())) {
@@ -180,7 +185,7 @@ public class MatchMaker {
 					}
 				}
 			}
-			
+
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 			System.exit(1);
@@ -190,7 +195,7 @@ public class MatchMaker {
 	}
 
 	private static Path handleNominalVariables(Path dir, Path inputSamples, FactorLoadings factorLoadings) {
-		
+
 		try (BufferedReader origSamplesFile = org.pankratzlab.common.Files
 				.getAppropriateReader(inputSamples.toString())) {
 			String line = origSamplesFile.readLine();
@@ -261,7 +266,7 @@ public class MatchMaker {
 			System.exit(1);
 		}
 		return null;
-		
+
 	}
 
 	private static ArrayList<Integer> getNominalIndices(String header, ArrayList<String> nominalFactorNames) {
@@ -349,8 +354,8 @@ public class MatchMaker {
 
 	}
 
-	private static int[] getLoadingIndices(Path sampleFile, Map<String, String> factorLoadings, boolean force, boolean includeNominal,
-			Logger log) {
+	private static int[] getLoadingIndices(Path sampleFile, Map<String, String> factorLoadings, boolean force,
+			boolean includeNominal, Logger log) {
 		Set<String> forcedCols = new LinkedHashSet<String>();
 		Set<String> doubleCols = new LinkedHashSet<String>();
 		boolean isNom;
@@ -475,11 +480,11 @@ public class MatchMaker {
 		visHelperWriter.close();
 		return tempVisHelperFile.toString();
 	}
-	
+
 	public static LinkedHashMap<String, String> parseEvalArgs(String argString) {
 		LinkedHashMap<String, String> evalArgs = new LinkedHashMap<String, String>();
 		String[] commaSplit = argString.split(",");
-		
+
 		for (String s : commaSplit) {
 			if (s.contains(":")) {
 				String[] colonSplit = s.split(":");
@@ -489,6 +494,94 @@ public class MatchMaker {
 			}
 		}
 		return evalArgs;
+	}
+
+	public static void buildFinalPhenoFile(String dir, FactorLoadings fl, int iterations) {
+		String matchesOptimized = dir + File.separator + "match.optimized.txt";
+		HashMap<Integer, String> optimizedHeaderIndices = new HashMap<Integer, String>();
+		ArrayList<String> finalPhenoHeaders = new ArrayList<String>();
+
+		try (BufferedReader matchesReader = org.pankratzlab.common.Files.getAppropriateReader(matchesOptimized)) {
+			String[] header = matchesReader.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
+			StringJoiner buildHeader = new StringJoiner("\t");
+			PrintWriter writePheno = org.pankratzlab.common.Files
+					.getAppropriateWriter(dir + File.separator + "finalPhenotype.txt");
+			int count = 0;
+			// build pheno file header
+			for (String s : header) {
+				optimizedHeaderIndices.put(count, s);
+				if (s.equalsIgnoreCase("id")) {
+					buildHeader.add(s);
+					finalPhenoHeaders.add(s);
+					buildHeader.add("affection");
+					finalPhenoHeaders.add("affection");
+					buildHeader.add("distance");
+					finalPhenoHeaders.add("distance");
+				}
+				// get columns from factor loadings
+				if (fl.factorLoadings.containsKey(s)) {
+					buildHeader.add(s);
+					finalPhenoHeaders.add(s.toLowerCase());
+				}
+				count++;
+			}
+
+			writePheno.println(buildHeader.toString());
+			String line = matchesReader.readLine();
+			String[] lineArr = line.trim().split(PSF.Regex.GREEDY_WHITESPACE);
+			StringBuilder newLine = new StringBuilder();
+			while (line != null) {
+				int indexTracker = 0;
+				int lastIndex = 0;
+				newLine = new StringBuilder();
+				lineArr = line.trim().split(PSF.Regex.GREEDY_WHITESPACE);
+				for (int i = 0; i <= iterations; i++) {
+					if (i < 1) {
+						// this should be a case (iteration 0)
+						// ID
+						newLine.append(lineArr[0] + "\t");
+						// Affection status 1 = case
+						newLine.append(samplePhenos.get(lineArr[0]) + "\t");
+						// Distance blank because not a control
+						newLine.append("." + "\t");
+						for (int j = 1; j < lineArr.length; j++) {
+							if (finalPhenoHeaders.contains(optimizedHeaderIndices.get(j).toLowerCase())) {
+								newLine.append(lineArr[j] + "\t");
+								indexTracker = j;
+							}
+						}
+					} else {
+						// this should be a control (iteration > 0)
+						// start loop at next index after last iteration
+						while (optimizedHeaderIndices.get(indexTracker) != null && !optimizedHeaderIndices.get(indexTracker).equals("control_" + i + "_id")) {
+							indexTracker++;
+						}
+						
+						for (int j = indexTracker; j < lineArr.length; j++) {
+							if (j == indexTracker) {
+								newLine.append(lineArr[j] + "\t");
+								newLine.append(samplePhenos.get(lineArr[j]) + "\t");
+								continue;
+							}
+							if (optimizedHeaderIndices.get(j).trim().contains("control_" + i)) {
+								if (finalPhenoHeaders
+										.contains(optimizedHeaderIndices.get(j).trim().split("_")[2].toLowerCase())) {
+									newLine.append(lineArr[j] + "\t");
+									lastIndex = j;
+								}
+							}
+						}
+					}
+					newLine.append("\n");
+					indexTracker = lastIndex;
+				}
+				writePheno.print(newLine.toString());
+				line = matchesReader.readLine();
+			}
+			writePheno.close();
+		} catch (IOException ioe) {
+			ioe.printStackTrace();
+		}
 	}
 
 	public static void main(String[] args) {
@@ -545,9 +638,10 @@ public class MatchMaker {
 				vis = Boolean.parseBoolean(arg.split("=")[1]);
 			} else if (arg.startsWith("onlyBuildVisFiles=")) {
 				onlyBuildVisFiles = Boolean.parseBoolean(arg.split("=")[1]);
-			} 
+			}
 		}
 		int initialNumSelect = finalNumSelect * multiplier;
+		samplePhenos = new HashMap<String, Integer>();
 		samples = Paths.get(d.toString() + File.separator + samples.toString());
 		log = Logger.getAnonymousLogger();
 		log.info("Starting sample match using k-d tree nearest neighbors.");
@@ -559,7 +653,8 @@ public class MatchMaker {
 				log.info("Output already exists.");
 				System.exit(0);
 			}
-			samples = runMatching(d, samples, factorLoadings, initialNumSelect, finalNumSelect, threads, normalize, log);
+			samples = runMatching(d, samples, factorLoadings, initialNumSelect, finalNumSelect, threads, normalize,
+					log);
 			if (vis) {
 				HashMap<Integer, Double> temp = getNumericColumnsForClustering(samples, factorLoadings);
 				int[] loadingIndicesForVis = new int[temp.keySet().size()];
@@ -581,6 +676,7 @@ public class MatchMaker {
 				}
 				// FileUtils.deleteDirectory(new File(d + "/visual_helpers/"));
 			}
+			buildFinalPhenoFile(d.toString(), factorLoadings, finalNumSelect);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
