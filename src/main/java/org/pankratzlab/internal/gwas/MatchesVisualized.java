@@ -20,7 +20,7 @@ import org.pankratzlab.common.PSF;
 import org.pankratzlab.common.ext;
 import org.pankratzlab.common.gui.UITools;
 import org.pankratzlab.common.mining.Transformations;
-import org.pankratzlab.utils.Grafik;
+import org.pankratzlab.common.plots.Grafik;
 
 public class MatchesVisualized {
 
