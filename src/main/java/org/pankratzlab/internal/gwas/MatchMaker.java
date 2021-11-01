@@ -195,7 +195,7 @@ public class MatchMaker {
       String[] header = origSamplesFile.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
       for (int i = 0; i < numericFactorNames.size(); i++) {
         for (int j = 0; j < header.length; j++) {
-          if (header[j].contains(numericFactorNames.get(i))) {
+          if (header[j].equals(numericFactorNames.get(i))) {
             columnsToUse.put(j, doubleLoadings.get(i));
           }
         }
