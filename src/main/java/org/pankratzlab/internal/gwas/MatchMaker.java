@@ -100,6 +100,9 @@ public class MatchMaker {
       KDMatch.writeToFile(optimizedMatches.stream(), outputOpt,
                           setConvert.stream().toArray(String[]::new),
                           setConvert.stream().toArray(String[]::new), finalNumSelect);
+    } catch (StackOverflowError s1) {
+      s1.printStackTrace();
+      log.info("To potentially prevent this StackOverflowError, try increasing the Thread Stack Size with the -Xss argument passed to the java virtual machine (i.e. java -Xss10m)");
     } catch (InterruptedException e1) {
       e1.printStackTrace();
     } catch (ExecutionException e2) {
