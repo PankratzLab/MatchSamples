@@ -47,7 +47,8 @@ public class MatchMaker {
                                           String caseGroup, List<Sample> controlList,
                                           HashMap<Integer, Double> numericColumnsToUseForClustering,
                                           int initialNumSelect, int finalNumSelect,
-                                          FactorLoadings factorLoadings, int threads, Logger log) {
+                                          boolean naiveOnlyMatches, FactorLoadings factorLoadings,
+                                          int threads, Logger log) {
 
     KDTree<Sample> kdTree = new KDTree<>(numericColumnsToUseForClustering.keySet().size());
     log.info("Assuming 1 ID column and " + (numericColumnsToUseForClustering.keySet().size())
@@ -86,31 +87,35 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    String outputOpt = baseDir + File.separator + caseGroup + ".match.optimized.txt";
-
-    log.info("selecting optimized nearest neighbors");
-
     List<Match> optimizedMatches = null;
-    try {
-      optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect,
-                                                                     threads, log)
-                                                 .collect(Collectors.toList());
-      log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to "
-               + outputOpt);
-      KDMatch.writeToFile(optimizedMatches.stream(), outputOpt,
-                          setConvert.stream().toArray(String[]::new),
-                          setConvert.stream().toArray(String[]::new), finalNumSelect);
-    } catch (StackOverflowError s1) {
-      s1.printStackTrace();
-      log.info("To potentially prevent this StackOverflowError, try increasing the Thread Stack Size with the -Xss argument passed to the java virtual machine (i.e. java -Xss10m)");
-    } catch (InterruptedException e1) {
-      e1.printStackTrace();
-    } catch (ExecutionException e2) {
-      e2.printStackTrace();
-    } catch (IOException e3) {
-      e3.printStackTrace();
-    }
 
+    if (naiveOnlyMatches) {
+      String outputOpt = baseDir + File.separator + caseGroup + ".match.optimized.txt";
+
+      log.info("selecting optimized nearest neighbors");
+
+      try {
+        optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect,
+                                                                       threads, log)
+                                                   .collect(Collectors.toList());
+        log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to "
+                 + outputOpt);
+        KDMatch.writeToFile(optimizedMatches.stream(), outputOpt,
+                            setConvert.stream().toArray(String[]::new),
+                            setConvert.stream().toArray(String[]::new), finalNumSelect);
+      } catch (StackOverflowError s1) {
+        s1.printStackTrace();
+        log.info("To potentially prevent this StackOverflowError, try increasing the Thread Stack Size with the -Xss argument passed to the java virtual machine (i.e. java -Xss10m)");
+      } catch (InterruptedException e1) {
+        e1.printStackTrace();
+      } catch (ExecutionException e2) {
+        e2.printStackTrace();
+      } catch (IOException e3) {
+        e3.printStackTrace();
+      }
+    } else {
+      log.info("skipping optimized match selection");
+    }
     return optimizedMatches;
 
   }
@@ -140,7 +145,8 @@ public class MatchMaker {
 
   public static Path runMatching(Path dir, Path inputSamples, FactorLoadings factorLoadings,
                                  int initialNumSelect, int finalNumSelect, int threads,
-                                 boolean normalize, Logger log) throws IOException {
+                                 boolean normalize, boolean naiveOnlyMatches,
+                                 Logger log) throws IOException {
 
     if (normalize) {
       inputSamples = normalizeFactors(dir, inputSamples, factorLoadings, log);
@@ -180,6 +186,7 @@ public class MatchMaker {
                                                                            numericColumnsToUseForClustering,
                                                                            initialNumSelect,
                                                                            finalNumSelect,
+                                                                           naiveOnlyMatches,
                                                                            factorLoadings, threads,
                                                                            log))
                                                     .flatMap(List::stream)
@@ -526,7 +533,7 @@ public class MatchMaker {
     int multiplier = 5;
     int threads = Runtime.getRuntime().availableProcessors();
     boolean vis = false;
-    boolean naiveOnly = false;
+    boolean naiveOnlyMatches = false;
     boolean onlyBuildVisFiles = false;
     LinkedHashMap<String, String> evalArgs;
     Logger log;
@@ -542,7 +549,7 @@ public class MatchMaker {
                    + "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex:nominal (default))\n"
                    + "(9) Visualize results - (e.g. vis=false (default))\n"
                    + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n"
-                   + "(11) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n";
+                   + "(11) Only compute naive matches - (allows for multiple controls to match to the same case, but is fast. e.g. naiveOnlyMatches=true (default))\n";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -571,7 +578,10 @@ public class MatchMaker {
         vis = Boolean.parseBoolean(arg.split("=")[1]);
       } else if (arg.startsWith("onlyBuildVisFiles=")) {
         onlyBuildVisFiles = Boolean.parseBoolean(arg.split("=")[1]);
+      } else if (arg.startsWith("naiveOnlyMatches=")) {
+        naiveOnlyMatches = Boolean.parseBoolean(arg.split("=")[1]);
       }
+
     }
     int initialNumSelect = finalNumSelect * multiplier;
     samples = Paths.get(d.toString() + File.separator + samples.toString());
@@ -586,7 +596,7 @@ public class MatchMaker {
         System.exit(0);
       }
       samples = runMatching(d, samples, factorLoadings, initialNumSelect, finalNumSelect, threads,
-                            normalize, log);
+                            normalize, naiveOnlyMatches, log);
       if (vis) {
         HashMap<Integer, Double> temp = getNumericColumnsForClustering(samples, factorLoadings);
         int[] loadingIndicesForVis = new int[temp.keySet().size()];
