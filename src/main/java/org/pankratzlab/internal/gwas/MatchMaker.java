@@ -44,7 +44,7 @@ import com.google.common.primitives.Ints;
 public class MatchMaker {
 
   private static List<Match> kdMatchMaker(Path baseDir, Path inputSamples, List<Sample> caseList,
-                                          List<Sample> controlList,
+                                          String caseGroup, List<Sample> controlList,
                                           HashMap<Integer, Double> numericColumnsToUseForClustering,
                                           int initialNumSelect, int finalNumSelect,
                                           FactorLoadings factorLoadings, int threads, Logger log) {
@@ -63,7 +63,7 @@ public class MatchMaker {
                                                                     initialNumSelect)
                                      .collect(Collectors.toList());
 
-    String outputBase = baseDir + File.separator + "match.naive.txt";
+    String outputBase = baseDir + File.separator + caseGroup + ".match.naive.txt";
     log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
              + outputBase);
     LinkedHashSet<String> setConvert = new LinkedHashSet<String>();
@@ -86,7 +86,7 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    String outputOpt = baseDir + File.separator + "match.optimized.txt";
+    String outputOpt = baseDir + File.separator + caseGroup + ".match.optimized.txt";
 
     log.info("selecting optimized nearest neighbors");
 
@@ -175,7 +175,7 @@ public class MatchMaker {
     final Path tempInputSamples = inputSamples;
     List<Match> results = casesGroupedByStringFactor.entrySet().stream()
                                                     .map(e -> kdMatchMaker(dir, tempInputSamples,
-                                                                           e.getValue(),
+                                                                           e.getValue(), e.getKey(),
                                                                            controlsGroupedByStringFactor.get(e.getKey()),
                                                                            numericColumnsToUseForClustering,
                                                                            initialNumSelect,
@@ -526,6 +526,7 @@ public class MatchMaker {
     int multiplier = 5;
     int threads = Runtime.getRuntime().availableProcessors();
     boolean vis = false;
+    boolean naiveOnly = false;
     boolean onlyBuildVisFiles = false;
     LinkedHashMap<String, String> evalArgs;
     Logger log;
@@ -540,7 +541,8 @@ public class MatchMaker {
                    + "(7) Normalize the input factors before matching (e.g. normalize=true (default))\n"
                    + "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex:nominal (default))\n"
                    + "(9) Visualize results - (e.g. vis=false (default))\n"
-                   + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n";
+                   + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n"
+                   + "(11) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
