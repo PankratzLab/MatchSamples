@@ -89,7 +89,7 @@ public class MatchMaker {
 
     List<Match> optimizedMatches = null;
 
-    if (naiveOnlyMatches) {
+    if (!naiveOnlyMatches) {
       String outputOpt = baseDir + File.separator + caseGroup + ".match.optimized.txt";
 
       log.info("selecting optimized nearest neighbors");
