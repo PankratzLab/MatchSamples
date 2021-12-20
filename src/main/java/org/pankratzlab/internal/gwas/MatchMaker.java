@@ -87,7 +87,7 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    List<Match> optimizedMatches = null;
+    List<Match> optimizedMatches = new ArrayList<Match>();
 
     if (!naiveOnlyMatches) {
       String outputOpt = baseDir + File.separator + caseGroup + ".match.optimized.txt";
