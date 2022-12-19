@@ -34,6 +34,10 @@ import org.pankratzlab.kdmatch.SelectOptimizedNeighbors;
 import com.google.common.primitives.Ints;
 
 public class MatchMaker {
+  private static final String naiveMatchFileName = "match.naive.txt";
+  private static final String naiveStatusFileName = "status.naive.txt";
+  private static final String optimizedMatchFileName = "match.optimized.txt";
+  private static final String optimizedStatusFileName = "status.optimized.txt";
 
   private static List<Match> kdMatchMaker(Path baseDir, Path inputSamples, List<Sample> caseList,
                                           List<Sample> controlList,
@@ -55,8 +59,8 @@ public class MatchMaker {
                                                                     initialNumSelect)
                                      .collect(Collectors.toList());
 
-    String outputBaseFileName = baseDir + File.separator + "match.naive.txt";
-    String statusBaseFileName = baseDir + File.separator + "status.naive.txt";
+    String outputBaseFileName = baseDir + File.separator + naiveMatchFileName;
+    String statusBaseFileName = baseDir + File.separator + naiveStatusFileName;
     log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
              + outputBaseFileName);
     LinkedHashSet<String> setConvert = new LinkedHashSet<String>();
@@ -81,8 +85,8 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    String outputOptFileName = baseDir + File.separator + "match.optimized.txt";
-    String statusOptFileName = baseDir + File.separator + "status.optimized.txt";
+    String outputOptFileName = baseDir + File.separator + optimizedMatchFileName;
+    String statusOptFileName = baseDir + File.separator + optimizedStatusFileName;
     log.info("selecting optimized nearest neighbors");
 
     List<Match> optimizedMatches = null;
@@ -573,9 +577,13 @@ public class MatchMaker {
     log.info("Starting sample match using k-d tree nearest neighbors.");
 
     try {
-      File naive = new File(d + "/match.naive.txt");
-      File optimized = new File(d + "/match.optimized.txt");
-      if (naive.exists() || optimized.exists()) {
+      List<String> fileNames = List.of(naiveMatchFileName, naiveStatusFileName,
+                                       optimizedMatchFileName, optimizedStatusFileName);
+      final Path finalD = d;
+      boolean outputExists = fileNames.stream()
+                                      .map(name -> new File(finalD + File.separator + name))
+                                      .anyMatch(File::exists);
+      if (outputExists) {
         log.info("Output already exists.");
         System.exit(0);
       }
@@ -593,7 +601,9 @@ public class MatchMaker {
           loadingIndicesForVis[s] = loadingIndicesForVis[s] - 1;
         }
         for (int i = 0; i < finalNumSelect; i++) {
-          buildVisHelpers(d, Paths.get(optimized.toString()), samples, i, log);
+          Path resultsFile = Paths.get(new File(d + File.separator
+                                                + optimizedMatchFileName).toString());
+          buildVisHelpers(d, resultsFile, samples, i, log);
           if (!onlyBuildVisFiles) {
             new MatchesVisualized(d.toString(), samples.toString(),
                                   d + "/visual_helpers/vis_helper_factors.temp",
