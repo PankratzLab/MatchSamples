@@ -4,15 +4,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,21 +20,17 @@ import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import org.apache.commons.io.FileUtils;
 import org.pankratzlab.common.ArrayUtils;
 import org.pankratzlab.common.HashVec;
 import org.pankratzlab.common.Matrix;
 import org.pankratzlab.common.PSF;
-import org.pankratzlab.internal.gwas.FactorLoadings;
 import org.pankratzlab.kdmatch.KDMatch;
 import org.pankratzlab.kdmatch.KDTree;
 import org.pankratzlab.kdmatch.Match;
 import org.pankratzlab.kdmatch.Sample;
 import org.pankratzlab.kdmatch.SelectOptimizedNeighbors;
 
-import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 
 public class MatchMaker {
@@ -63,9 +55,10 @@ public class MatchMaker {
                                                                     initialNumSelect)
                                      .collect(Collectors.toList());
 
-    String outputBase = baseDir + File.separator + "match.naive.txt";
+    String outputBaseFileName = baseDir + File.separator + "match.naive.txt";
+    String statusBaseFileName = baseDir + File.separator + "status.naive.txt";
     log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
-             + outputBase);
+             + outputBaseFileName);
     LinkedHashSet<String> setConvert = new LinkedHashSet<String>();
 
     try {
@@ -75,9 +68,11 @@ public class MatchMaker {
         setConvert.add(header[i]);
       }
       try {
-        KDMatch.writeToFile(naiveMatches.stream(), outputBase,
+        KDMatch.writeToFile(naiveMatches.stream(), outputBaseFileName,
                             setConvert.stream().toArray(String[]::new),
                             setConvert.stream().toArray(String[]::new), initialNumSelect);
+
+        KDMatch.writeSampleStatusFile(naiveMatches.stream(), statusBaseFileName, initialNumSelect);
       } catch (IOException e) {
         e.printStackTrace();
       }
@@ -86,8 +81,8 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    String outputOpt = baseDir + File.separator + "match.optimized.txt";
-
+    String outputOptFileName = baseDir + File.separator + "match.optimized.txt";
+    String statusOptFileName = baseDir + File.separator + "status.optimized.txt";
     log.info("selecting optimized nearest neighbors");
 
     List<Match> optimizedMatches = null;
@@ -96,10 +91,11 @@ public class MatchMaker {
                                                                      threads, log)
                                                  .collect(Collectors.toList());
       log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to "
-               + outputOpt);
-      KDMatch.writeToFile(optimizedMatches.stream(), outputOpt,
+               + outputOptFileName);
+      KDMatch.writeToFile(optimizedMatches.stream(), outputOptFileName,
                           setConvert.stream().toArray(String[]::new),
                           setConvert.stream().toArray(String[]::new), finalNumSelect);
+      KDMatch.writeSampleStatusFile(optimizedMatches.stream(), statusOptFileName, finalNumSelect);
     } catch (StackOverflowError s1) {
       s1.printStackTrace();
       log.info("To potentially prevent this StackOverflowError, try increasing the Thread Stack Size with the -Xss argument passed to the java virtual machine (i.e. java -Xss10m)");
