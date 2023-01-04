@@ -105,7 +105,7 @@ public class MatchingVariable {
   public double getConcordance() {
     mustBeBinary();
     if (previousControlValues.size() > 0) {
-      throw new IllegalStateException("WARNING - Not all control values have been processed, perhaps the corresponding cases were not found?");
+      throw new IllegalStateException("Not all control values have been processed, perhaps the corresponding cases were not found?");
     }
     concordance = (double) matchesSeen / (double) totalSeen;
     return concordance;
