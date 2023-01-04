@@ -10,6 +10,7 @@ import java.util.Set;
 
 import org.pankratzlab.common.Files;
 import org.pankratzlab.common.PSF;
+import org.pankratzlab.kdmatch.KDMatch;
 
 public class REval {
   final MatchingVariable[] matchingVariables;
@@ -22,9 +23,13 @@ public class REval {
   public REval(MatchingVariable[] matchingVariables, File statusFile,
                File phenotypeFile) throws IOException {
     this.matchingVariables = matchingVariables;
-    // todo: don't use assert
-    assert statusFile.exists();
-    assert phenotypeFile.exists();
+
+    if (!statusFile.exists()) {
+      throw new IllegalArgumentException("Provided status file does not exist.");
+    }
+    if (!phenotypeFile.exists()) {
+      throw new IllegalArgumentException("Provided phenotype file does not exist.");
+    }
 
     this.statusFile = statusFile;
     this.phenotypeFile = phenotypeFile;
@@ -42,9 +47,15 @@ public class REval {
     Map<Integer, MatchingVariable> matchingVarIndexMap = new HashMap<>();
     for (MatchingVariable mv : matchingVariables) {
       int i = mv.findIndexInHeader(phenoHeader);
-      assert i != -1; // todo: checks that all the matching variables end up in the map
-      matchingVarIndexMap.put(i, mv);
-      // todo: there should be some check that no two matching variables share an index
+      if (i == -1) {
+        throw new IllegalStateException("Unable to find column for matching variable; expected header name: "
+                                        + mv.headerName);
+      }
+      MatchingVariable previousMV = matchingVarIndexMap.putIfAbsent(i, mv);
+      if (previousMV != null) {
+        System.out.println("WARNING - Found multiple matching variables for the same header name: "
+                           + previousMV.headerName);
+      }
     }
 
     String[] line;
@@ -53,16 +64,17 @@ public class REval {
       line = splitTsvLine(inputLine);
       String sampleId = line[0];
       if (cases.contains(sampleId) || controls.contains(sampleId)) {
-        for (int i : matchingVarIndexMap.keySet()) {
-          MatchingVariable mv = matchingVarIndexMap.get(i);
+        for (int matchVarIndex : matchingVarIndexMap.keySet()) {
+          MatchingVariable mv = matchingVarIndexMap.get(matchVarIndex);
           if (mv.isBinary) {
             if (cases.contains(sampleId)) {
-              mv.setCaseValue(sampleId, Integer.parseInt(line[i]));
+              mv.setCaseValue(sampleId, Integer.parseInt(line[matchVarIndex]));
             } else {
-              mv.recordControlValue(controlCasePairings.get(sampleId), Integer.parseInt(line[i]));
+              mv.recordControlValue(controlCasePairings.get(sampleId),
+                                    Integer.parseInt(line[matchVarIndex]));
             }
           } else {
-            double value = Double.parseDouble(line[i]);
+            double value = Double.parseDouble(line[matchVarIndex]);
             if (cases.contains(sampleId)) {
               mv.addToCaseSum(value);
             } else {
@@ -78,12 +90,12 @@ public class REval {
   private Map<String, String> readPairings() throws IOException {
     // id -> matched case
     Map<String, String> pairings = new HashMap<>();
-    // todo: this should be a constant from kd-match
-    String expectedHeader = "id\tstatus\tmatched_case_id\n";
+    String expectedHeader = KDMatch.STATUS_FILE_HEADER;
     BufferedReader reader = Files.getAppropriateReader(statusFile.toString());
-    String actualheader = reader.readLine();
-
-    assert actualheader.equals(expectedHeader); // todo
+    String actualHeader = reader.readLine().strip();
+    if (!actualHeader.equals(expectedHeader)) {
+      throw new IllegalStateException("Status file header does not match expected header.");
+    }
 
     String[] line;
     String inputLine = reader.readLine();
