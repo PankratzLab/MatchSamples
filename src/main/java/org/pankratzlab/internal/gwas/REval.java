@@ -3,6 +3,7 @@ package org.pankratzlab.internal.gwas;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -19,9 +20,23 @@ public class REval {
   final Map<String, String> controlCasePairings;
   final Set<String> cases;
   final Set<String> controls;
+  private int totalSampleCount = 0;
+
+  private final BinaryDataBox binaryDataBox;
+  private final ContinuousDataBox continuousDataBox;
 
   public REval(MatchingVariable[] matchingVariables, File statusFile,
                File phenotypeFile) throws IOException {
+    Set<String> headerNamesSeen = new HashSet<>();
+
+    for (MatchingVariable mv : matchingVariables) {
+      if (headerNamesSeen.contains(mv.headerName)) {
+        throw new IllegalArgumentException("Multiple matching variables provided for this header name: "
+                                           + mv.headerName);
+      } else {
+        headerNamesSeen.add(mv.headerName);
+      }
+    }
     this.matchingVariables = matchingVariables;
 
     if (!statusFile.exists()) {
@@ -37,6 +52,16 @@ public class REval {
     this.controlCasePairings = readPairings();
     this.controls = controlCasePairings.keySet();
     this.cases = new HashSet<>(controlCasePairings.values());
+
+    MatchingVariable[] binaryMvs = Arrays.stream(matchingVariables).filter(mv -> mv.isBinary)
+                                         .toArray(MatchingVariable[]::new);
+    binaryDataBox = new BinaryDataBox(binaryMvs, totalSampleCount, controlCasePairings, cases);
+
+    MatchingVariable[] continuousMvs = Arrays.stream(matchingVariables).filter(mv -> !mv.isBinary)
+                                             .toArray(MatchingVariable[]::new);
+    continuousDataBox = new ContinuousDataBox(continuousMvs, totalSampleCount, controlCasePairings,
+                                              cases);
+
   }
 
   public void evaluate() throws IOException {
@@ -44,18 +69,14 @@ public class REval {
     String[] phenoHeader = splitTsvLine(phenoReader.readLine());
 
     // figure out which column corresponds to each matching variable
-    Map<Integer, MatchingVariable> matchingVarIndexMap = new HashMap<>();
+    Map<Integer, MatchingVariable> matchingVarsByIndex = new HashMap<>();
     for (MatchingVariable mv : matchingVariables) {
       int i = mv.findIndexInHeader(phenoHeader);
       if (i == -1) {
         throw new IllegalStateException("Unable to find column for matching variable; expected header name: "
                                         + mv.headerName);
       }
-      MatchingVariable previousMV = matchingVarIndexMap.putIfAbsent(i, mv);
-      if (previousMV != null) {
-        System.out.println("WARNING - Found multiple matching variables for the same header name: "
-                           + previousMV.headerName);
-      }
+      matchingVarsByIndex.put(i, mv);
     }
 
     String[] line;
@@ -64,27 +85,23 @@ public class REval {
       line = splitTsvLine(inputLine);
       String sampleId = line[0];
       if (cases.contains(sampleId) || controls.contains(sampleId)) {
-        for (int matchVarIndex : matchingVarIndexMap.keySet()) {
-          MatchingVariable mv = matchingVarIndexMap.get(matchVarIndex);
+        for (int matchVarIndex : matchingVarsByIndex.keySet()) {
+          MatchingVariable mv = matchingVarsByIndex.get(matchVarIndex);
           if (mv.isBinary) {
-            if (cases.contains(sampleId)) {
-              mv.setCaseValue(sampleId, Integer.parseInt(line[matchVarIndex]));
-            } else {
-              mv.recordControlValue(controlCasePairings.get(sampleId),
-                                    Integer.parseInt(line[matchVarIndex]));
-            }
+            binaryDataBox.recordValue(sampleId, mv, Integer.parseInt(line[matchVarIndex]));
           } else {
             double value = Double.parseDouble(line[matchVarIndex]);
-            if (cases.contains(sampleId)) {
-              mv.addToCaseSum(value);
-            } else {
-              mv.addToControlSum(value);
-            }
+            continuousDataBox.recordValue(mv, sampleId, value);
           }
         }
       }
       inputLine = phenoReader.readLine();
     }
+  }
+
+  private void univariateLeastSquares() {
+
+    // LeastSquares leastSquares = new LeastSquares.LeastSquaresBuilder();
   }
 
   private Map<String, String> readPairings() throws IOException {
@@ -107,6 +124,7 @@ public class REval {
       if (isNotCase) {
         pairings.put(line[0], line[2]);
       }
+      totalSampleCount++;
       inputLine = reader.readLine();
     }
     return pairings;
