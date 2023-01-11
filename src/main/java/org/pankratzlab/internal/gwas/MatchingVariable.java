@@ -9,8 +9,7 @@ public class MatchingVariable {
 
   private int headerIndex = -1;
 
-  private ContinuousDataBox continuousDataBox;
-  private BinaryDataBox binaryDataBox;
+  private DataBox dataBox;
 
   public MatchingVariable(String headerName, boolean isBinary) {
     this.headerName = headerName;
@@ -27,38 +26,32 @@ public class MatchingVariable {
     return headerIndex;
   }
 
-  public void setContinuousDataBox(ContinuousDataBox box) {
-    cantBeBinary();
-    this.continuousDataBox = box;
-  }
-
-  public void setBinaryDataBox(BinaryDataBox box) {
-    mustBeBinary();
-    this.binaryDataBox = box;
+  public void setDataBox(DataBox dataBox) {
+    this.dataBox = dataBox;
   }
 
   public double getCaseAvg() {
     cantBeBinary();
-    return continuousDataBox.getCaseAvg(this);
+    return dataBox.getCaseAvg(this);
   }
 
   public double getControlAvg() {
     cantBeBinary();
-    return continuousDataBox.getControlAvg(this);
+    return dataBox.getControlAvg(this);
   }
 
   public double getConcordance() {
     mustBeBinary();
-    return binaryDataBox.getConcordance(this);
+    return dataBox.getConcordance(this);
   }
 
-  private void cantBeBinary() {
+  public void cantBeBinary() {
     if (isBinary) {
       throw new UnsupportedOperationException("This operation is not supported for binary matching variables");
     }
   }
 
-  private void mustBeBinary() {
+  public void mustBeBinary() {
     if (!isBinary) {
       throw new UnsupportedOperationException("This operation is not supported for non-binary matching variables");
     }

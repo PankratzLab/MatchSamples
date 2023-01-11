@@ -1,7 +1,6 @@
 package org.pankratzlab.internal.gwas;
 
 import java.util.Map;
-import java.util.Set;
 
 import org.junit.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -9,31 +8,32 @@ import org.junit.jupiter.api.function.Executable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class MatchingVariableAndBinaryDataBoxTest {
+public class MatchingVariableAndDataBoxTest {
 
   @Test
   public void testRecordControlValues() {
     MatchingVariable mv = new MatchingVariable("foo", true);
+    mv.findIndexInHeader(new String[] {"id", "foo"});
     Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1");
-    BinaryDataBox binaryDataBox = new BinaryDataBox(new MatchingVariable[] {mv}, 3, pairings,
-                                                    Set.of("case1"));
+    DataBox dataBox = new DataBox(new MatchingVariable[] {}, new MatchingVariable[] {mv}, pairings);
 
-    binaryDataBox.recordValue("cont1", mv, 1);
-    binaryDataBox.recordValue("cont2", mv, 0);
-    binaryDataBox.recordValue("case1", mv, 0);
+    dataBox.recordData(new String[] {"cont1", "1"});
+    dataBox.recordData(new String[] {"cont2", "0"});
+    dataBox.recordData(new String[] {"case1", "0"});
 
     assertEquals(0.5, mv.getConcordance());
   }
 
   @Test
-  public void testExceptionIfCaseValueNotSet() {
+  public void testCaseValueNotSet() {
     MatchingVariable mv = new MatchingVariable("foo", true);
+    mv.findIndexInHeader(new String[] {"id", "foo"});
     Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1");
-    BinaryDataBox binaryDataBox = new BinaryDataBox(new MatchingVariable[] {mv}, 3, pairings,
-                                                    Set.of("case1"));
 
-    binaryDataBox.recordValue("cont1", mv, 1);
-    binaryDataBox.recordValue("cont2", mv, 0);
+    DataBox dataBox = new DataBox(new MatchingVariable[] {}, new MatchingVariable[] {mv}, pairings);
+
+    dataBox.recordData(new String[] {"cont1", "1"});
+    dataBox.recordData(new String[] {"cont2", "0"});
 
     assertThrows(IllegalStateException.class, mv::getConcordance);
   }

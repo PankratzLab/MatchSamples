@@ -3,7 +3,6 @@ package org.pankratzlab.internal.gwas;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -18,12 +17,8 @@ public class REval {
   final File statusFile;
   final File phenotypeFile;
   final Map<String, String> controlCasePairings;
-  final Set<String> cases;
-  final Set<String> controls;
-  private int totalSampleCount = 0;
 
-  private final BinaryDataBox binaryDataBox;
-  private final ContinuousDataBox continuousDataBox;
+  private final DataBox dataBox;
 
   public REval(MatchingVariable[] matchingVariables, File statusFile,
                File phenotypeFile) throws IOException {
@@ -50,17 +45,8 @@ public class REval {
     this.phenotypeFile = phenotypeFile;
 
     this.controlCasePairings = readPairings();
-    this.controls = controlCasePairings.keySet();
-    this.cases = new HashSet<>(controlCasePairings.values());
 
-    MatchingVariable[] binaryMvs = Arrays.stream(matchingVariables).filter(mv -> mv.isBinary)
-                                         .toArray(MatchingVariable[]::new);
-    binaryDataBox = new BinaryDataBox(binaryMvs, totalSampleCount, controlCasePairings, cases);
-
-    MatchingVariable[] continuousMvs = Arrays.stream(matchingVariables).filter(mv -> !mv.isBinary)
-                                             .toArray(MatchingVariable[]::new);
-    continuousDataBox = new ContinuousDataBox(continuousMvs, totalSampleCount, controlCasePairings,
-                                              cases);
+    this.dataBox = new DataBox(matchingVariables, controlCasePairings);
 
   }
 
@@ -69,32 +55,19 @@ public class REval {
     String[] phenoHeader = splitTsvLine(phenoReader.readLine());
 
     // figure out which column corresponds to each matching variable
-    Map<Integer, MatchingVariable> matchingVarsByIndex = new HashMap<>();
     for (MatchingVariable mv : matchingVariables) {
       int i = mv.findIndexInHeader(phenoHeader);
       if (i == -1) {
         throw new IllegalStateException("Unable to find column for matching variable; expected header name: "
                                         + mv.headerName);
       }
-      matchingVarsByIndex.put(i, mv);
     }
 
     String[] line;
     String inputLine = phenoReader.readLine();
     while (inputLine != null) {
       line = splitTsvLine(inputLine);
-      String sampleId = line[0];
-      if (cases.contains(sampleId) || controls.contains(sampleId)) {
-        for (int matchVarIndex : matchingVarsByIndex.keySet()) {
-          MatchingVariable mv = matchingVarsByIndex.get(matchVarIndex);
-          if (mv.isBinary) {
-            binaryDataBox.recordValue(sampleId, mv, Integer.parseInt(line[matchVarIndex]));
-          } else {
-            double value = Double.parseDouble(line[matchVarIndex]);
-            continuousDataBox.recordValue(mv, sampleId, value);
-          }
-        }
-      }
+      dataBox.recordData(line);
       inputLine = phenoReader.readLine();
     }
   }
@@ -124,7 +97,6 @@ public class REval {
       if (isNotCase) {
         pairings.put(line[0], line[2]);
       }
-      totalSampleCount++;
       inputLine = reader.readLine();
     }
     return pairings;

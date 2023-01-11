@@ -19,8 +19,8 @@ public class REvalTest {
     REval rEval = new REval(new MatchingVariable[] {foo, bar}, status, phenotype);
     rEval.evaluate();
 
-    assertEquals(0.0, foo.getCaseAvg());
-    assertEquals(0.0, foo.getControlAvg());
+    assertEquals(-0.5, foo.getCaseAvg());
+    assertEquals(0.5, foo.getControlAvg());
     assertEquals(0.5, bar.getConcordance());
   }
 }
