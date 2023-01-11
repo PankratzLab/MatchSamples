@@ -3,6 +3,7 @@ package org.pankratzlab.internal.gwas;
 import org.pankratzlab.common.ext;
 
 public class MatchingVariable {
+  public static final String NA = "NA";
   final public String prettyName;
   final public String headerName;
   final public boolean isBinary;
@@ -43,6 +44,20 @@ public class MatchingVariable {
   public double getConcordance() {
     mustBeBinary();
     return dataBox.getConcordance(this);
+  }
+
+  public String getTableLine() {
+    String caseAvg = this.isBinary ? NA : prettyDecimal(this.getCaseAvg());
+    String controlAvg = this.isBinary ? NA : prettyDecimal(this.getControlAvg());
+    String concordance = this.isBinary ? prettyDecimal(this.getConcordance()) : NA;
+    String univariateP = "TODO";
+    String multivariateP = "TODO";
+    return String.join("\t", this.headerName, caseAvg, controlAvg, concordance, univariateP,
+                       multivariateP);
+  }
+
+  private static String prettyDecimal(double d) {
+    return ext.formDeci(d, 5);
   }
 
   public void cantBeBinary() {

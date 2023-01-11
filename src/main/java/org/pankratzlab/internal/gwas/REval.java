@@ -3,6 +3,7 @@ package org.pankratzlab.internal.gwas;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -17,6 +18,7 @@ public class REval {
   final File statusFile;
   final File phenotypeFile;
   final Map<String, String> controlCasePairings;
+  private boolean evaluated = false;
 
   private final DataBox dataBox;
 
@@ -34,11 +36,11 @@ public class REval {
     }
     this.matchingVariables = matchingVariables;
 
-    if (!statusFile.exists()) {
-      throw new IllegalArgumentException("Provided status file does not exist.");
+    if (!statusFile.isFile()) {
+      throw new IllegalArgumentException("Provided status file does not exist or is not a normal file.");
     }
-    if (!phenotypeFile.exists()) {
-      throw new IllegalArgumentException("Provided phenotype file does not exist.");
+    if (!phenotypeFile.isFile()) {
+      throw new IllegalArgumentException("Provided phenotype file does not exist or is not a normal file.");
     }
 
     this.statusFile = statusFile;
@@ -69,6 +71,24 @@ public class REval {
       line = splitTsvLine(inputLine);
       dataBox.recordData(line);
       inputLine = phenoReader.readLine();
+    }
+    evaluated = true;
+  }
+
+  public void writeTableOutputToFile(File outputFile) throws IOException {
+    if (!evaluated) {
+      evaluate();
+    }
+    if (outputFile.exists()) {
+      throw new IllegalArgumentException("Provided output file already exists!");
+    }
+    String header = "variable_name\tcase_avg\tcontrol_avg\tconcordance\tunivariate_p\tmultivariate_p";
+
+    try (PrintWriter writer = new PrintWriter(outputFile)) {
+      writer.println(header);
+      for (MatchingVariable mv : matchingVariables) {
+        writer.println(mv.getTableLine());
+      }
     }
   }
 
