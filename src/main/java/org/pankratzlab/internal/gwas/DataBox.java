@@ -181,8 +181,8 @@ public class DataBox {
       }
       RegressionModel model = new LeastSquares(deps, indeps);
       univariatePValues[combinedVariableIndexMap.get(mv)] = model.getOverallSig();
-      univariatePValuesComputed = true;
     }
+    univariatePValuesComputed = true;
   }
 
   public void computeMultivariateP() {
