@@ -92,9 +92,8 @@ public class REval {
     }
   }
 
-  private void univariateLeastSquares() {
-
-    // LeastSquares leastSquares = new LeastSquares.LeastSquaresBuilder();
+  public void computePValues() {
+    dataBox.computeMultivariateP();
   }
 
   private Map<String, String> readPairings() throws IOException {
