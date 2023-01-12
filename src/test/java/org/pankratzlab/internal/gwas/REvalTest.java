@@ -17,7 +17,7 @@ public class REvalTest {
     File phenotype = new File("src/test/resources/phenotype.tsv");
 
     REval rEval = new REval(new MatchingVariable[] {foo, bar}, status, phenotype);
-    rEval.evaluate();
+    rEval.readPhenotypeFile();
 
     assertEquals(-0.5, foo.getCaseAvg());
     assertEquals(0.5, foo.getControlAvg());

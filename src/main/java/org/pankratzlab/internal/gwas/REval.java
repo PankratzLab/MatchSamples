@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -13,12 +15,14 @@ import org.pankratzlab.common.Files;
 import org.pankratzlab.common.PSF;
 import org.pankratzlab.kdmatch.KDMatch;
 
+import static java.lang.System.exit;
+
 public class REval {
   final MatchingVariable[] matchingVariables;
   final File statusFile;
   final File phenotypeFile;
   final Map<String, String> controlCasePairings;
-  private boolean evaluated = false;
+  private boolean haveReadPhenotype = false;
 
   private final DataBox dataBox;
 
@@ -52,7 +56,7 @@ public class REval {
 
   }
 
-  public void evaluate() throws IOException {
+  public void readPhenotypeFile() throws IOException {
     BufferedReader phenoReader = Files.getAppropriateReader(phenotypeFile.toString());
     String[] phenoHeader = splitTsvLine(phenoReader.readLine());
 
@@ -72,12 +76,12 @@ public class REval {
       dataBox.recordData(line);
       inputLine = phenoReader.readLine();
     }
-    evaluated = true;
+    haveReadPhenotype = true;
   }
 
   public void writeTableOutputToFile(File outputFile) throws IOException {
-    if (!evaluated) {
-      evaluate();
+    if (!haveReadPhenotype) {
+      readPhenotypeFile();
     }
     if (outputFile.exists()) {
       throw new IllegalArgumentException("Provided output file already exists!");
@@ -119,5 +123,73 @@ public class REval {
 
   private static String[] splitTsvLine(String inputLine) {
     return inputLine.trim().split(PSF.Regex.GREEDY_WHITESPACE);
+  }
+
+  public static void main(String[] args) throws IOException {
+
+    //@format:off
+    String usage = "\ngwas.REval usage:\n"
+                   + "dir=working_directory/ (optional, default=./)\n"
+                   + "status=path/to/status_file.tsv (optional, default=status.optimized.txt, path is relative to working directory)\n"
+                   + "phenotype=path/to/phenotype_file.tsv (required, path is relative to working directory)\n"
+                   + "matchingVars=path/to/matching_vars_file.tsv (optional, default=matching_variables.tsv, path is relative to working directory)\n"
+                   + "output=path/to/output_file.tsv (optional, default=reval_results.tsv, path is relative to working directory\n"
+                   + "\n"
+                   + "status file:        This should be the output from MatchMaker\n"
+                   + "phenotype file:     This should be the phenotype file that was used as input to produce the status file\n"
+                   + "matching vars file: Two column tsv describing the matching variables to be evaluated\n"
+                   + "    header_name -> the name of a column in the phenotype file\n"
+                   + "    is_binary   -> true or false, if true, treat this variable as having only two possible values"
+                   + "\n";
+    //@format:on
+    Path dir = Paths.get("./");
+    Path status = Paths.get("status.optimized.txt");
+    Path phenotype = null;
+    Path matchingVariables = Paths.get("matching_variables.tsv");
+    Path output = Paths.get("reval_results.tsv");
+
+    for (String arg : args) {
+      if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
+        System.err.println(usage);
+        exit(1);
+      } else if (arg.startsWith("dir=")) {
+        dir = parsePathFromArg(arg);
+      } else if (arg.startsWith("status=")) {
+        status = parsePathFromArg(arg);
+      } else if (arg.startsWith("phenotype=")) {
+        phenotype = parsePathFromArg(arg);
+      } else if (arg.startsWith("matchingVars=")) {
+        matchingVariables = parsePathFromArg(arg);
+      } else if (arg.startsWith("output=")) {
+        output = parsePathFromArg(arg);
+      }
+    }
+
+    if (phenotype == null) {
+      System.err.println("No phenotype file provided, cannot continue.");
+      System.err.println(usage);
+      exit(1);
+    }
+
+    MatchingVariable[] matchingVariablesArray = MatchingVariable.fromFile(dir.resolve(matchingVariables)
+                                                                             .toFile());
+    File statusFile = dir.resolve(status).toFile();
+    File phenotypeFile = dir.resolve(phenotype).toFile();
+    File outputFile = dir.resolve(output).toFile();
+
+    if (!outputFile.getParentFile().isDirectory()) {
+      throw new IllegalArgumentException("The directory containing the specified output file does not exist.");
+    }
+    if (outputFile.isFile()) {
+      throw new IllegalArgumentException("The specified output file already exists.");
+    }
+
+    REval rEval = new REval(matchingVariablesArray, statusFile, phenotypeFile);
+    rEval.readPhenotypeFile();
+    rEval.writeTableOutputToFile(outputFile);
+  }
+
+  private static Path parsePathFromArg(String arg) {
+    return Paths.get(arg.split("=")[1]);
   }
 }
