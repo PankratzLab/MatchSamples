@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.pankratzlab.common.ext;
+import org.pankratzlab.common.stats.LeastSquares;
 import org.pankratzlab.common.stats.LogisticRegression;
 import org.pankratzlab.common.stats.RegressionModel;
 
@@ -43,6 +45,9 @@ public class DataBox {
 
   private double[] univariatePValues;
   private boolean univariatePValuesComputed = false;
+
+  private double[] multivariatePValues;
+  private boolean multivariatePValuesComputed = false;
 
   public DataBox(MatchingVariable[] allMatchingVariables, Map<String, String> controlCasePairings) {
     this(Arrays.stream(allMatchingVariables).filter(mv -> !mv.isBinary)
@@ -174,25 +179,17 @@ public class DataBox {
           indeps[si] = continuousData[si][mvIndex];
         }
       }
-      RegressionModel model = new LogisticRegression(deps, indeps);
+      RegressionModel model = new LeastSquares(deps, indeps);
       univariatePValues[combinedVariableIndexMap.get(mv)] = model.getOverallSig();
     }
   }
 
   public void computeMultivariateP() {
+    this.multivariatePValues = new double[combinedVariableIndexMap.size()];
     // dependant variables: we just have one, case/control status
     // this is represented as an array of 1s for cases and 0s for controls
     double[] deps = Arrays.stream(sampleIdByIndex)
                           .mapToDouble(sampleId -> caseIds.contains(sampleId) ? 1 : 0).toArray();
-    /*
-     * // todo: rework the storage logic so that we can avoid doing this transposition? double[][]
-     * indeps = new double[combinedVariableIndexMap.size()][totalSampleCount]; for (int si = 0; si <
-     * totalSampleCount; si++) { for (MatchingVariable mv : combinedVariableIndexMap.keySet()) { if
-     * (mv.isBinary) { indeps[combinedVariableIndexMap.get(mv)][si] =
-     * binaryData[si][matchingVariableIndexMap.get(mv)]; } else {
-     * indeps[combinedVariableIndexMap.get(mv)][si] =
-     * continuousData[si][matchingVariableIndexMap.get(mv)]; } } }
-     */
 
     double[][] indeps = new double[totalSampleCount][combinedVariableIndexMap.size()];
     for (int si = 0; si < totalSampleCount; si++) {
@@ -212,8 +209,12 @@ public class DataBox {
     }
 
     RegressionModel model = new LogisticRegression(deps, indeps, indepVariableNames, false, true);
-    model.dumpData("/tmp/datadump"); // todo rm test output
-    System.out.println(model.getSummary());
+
+    for (MatchingVariable mv : combinedVariableIndexMap.keySet()) {
+      int indexInModelSigs = ext.indexOfStr(mv.headerName, model.getVarNames());
+      multivariatePValues[combinedVariableIndexMap.get(mv)] = model.getSigs()[indexInModelSigs];
+    }
+    multivariatePValuesComputed = true;
   }
 
   public void computeConcordancesIfNecessary() {
@@ -228,9 +229,15 @@ public class DataBox {
     }
   }
 
-  public void computeUnivariatePValuesIfNecessary() {
+  public void computeUnivariatePIfNecessary() {
     if (!univariatePValuesComputed) {
       computeUnivariateP();
+    }
+  }
+
+  public void computeMultivariatePIfNecessary() {
+    if (!multivariatePValuesComputed) {
+      computeMultivariateP();
     }
   }
 
@@ -256,9 +263,15 @@ public class DataBox {
   }
 
   public double getUnivariateP(MatchingVariable matchingVariable) {
-    computeUnivariatePValuesIfNecessary();
+    computeUnivariatePIfNecessary();
     int combinedMvIndex = combinedVariableIndexMap.get(matchingVariable);
     return univariatePValues[combinedMvIndex];
+  }
+
+  public double getMultivariateP(MatchingVariable matchingVariable) {
+    computeMultivariatePIfNecessary();
+    int combinedMvIndex = combinedVariableIndexMap.get(matchingVariable);
+    return multivariatePValues[combinedMvIndex];
   }
 
   private int getCaseIndexForControlIndex(int controlIndex) {

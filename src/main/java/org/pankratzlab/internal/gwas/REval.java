@@ -92,10 +92,6 @@ public class REval {
     }
   }
 
-  public void computePValues() {
-    dataBox.computeMultivariateP();
-  }
-
   private Map<String, String> readPairings() throws IOException {
     // id -> matched case
     Map<String, String> pairings = new HashMap<>();

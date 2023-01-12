@@ -50,12 +50,16 @@ public class MatchingVariable {
     return dataBox.getUnivariateP(this);
   }
 
+  public double getMultivariateP() {
+    return dataBox.getMultivariateP(this);
+  }
+
   public String getTableLine() {
     String caseAvg = this.isBinary ? NA : prettyDecimal(this.getCaseAvg());
     String controlAvg = this.isBinary ? NA : prettyDecimal(this.getControlAvg());
     String concordance = this.isBinary ? prettyDecimal(this.getConcordance()) : NA;
     String univariateP = prettyDecimal(this.getUnivariateP());
-    String multivariateP = "TODO";
+    String multivariateP = prettyDecimal(this.getMultivariateP());
     return String.join("\t", this.headerName, caseAvg, controlAvg, concordance, univariateP,
                        multivariateP);
   }
