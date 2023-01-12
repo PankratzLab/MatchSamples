@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.pankratzlab.common.ext;
-import org.pankratzlab.common.stats.LeastSquares;
 import org.pankratzlab.common.stats.LogisticRegression;
 import org.pankratzlab.common.stats.RegressionModel;
 
@@ -179,7 +178,7 @@ public class DataBox {
           indeps[si] = continuousData[si][mvIndex];
         }
       }
-      RegressionModel model = new LeastSquares(deps, indeps);
+      RegressionModel model = new LogisticRegression(deps, indeps);
       univariatePValues[combinedVariableIndexMap.get(mv)] = model.getOverallSig();
     }
     univariatePValuesComputed = true;
