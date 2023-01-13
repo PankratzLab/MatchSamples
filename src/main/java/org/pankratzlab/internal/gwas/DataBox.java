@@ -12,20 +12,13 @@ import org.pankratzlab.common.stats.RegressionModel;
 
 public class DataBox {
 
-  private final MatchingVariable[] continuousMatchingVariables;
-  private final MatchingVariable[] binaryMatchingVariables;
+  private final MatchingVariable[] matchingVariables;
 
   // keep a map of MV -> index in array for O(1) lookup later
-  // This stores each MV's index AMONG the other MVs OF ITS TYPE.
   private final Map<MatchingVariable, Integer> matchingVariableIndexMap;
-  // This is an index to be used when we need a unique index of each MV among ALL the MVs.
-  // The structure is simple: continuous MVs in their original order, then binary MVs in their
-  // original order.
-  private final Map<MatchingVariable, Integer> combinedVariableIndexMap;
 
   private final int totalSampleCount;
-  private final int[][] binaryData;
-  private final double[][] continuousData;
+  private final double[][] data;
 
   private final Map<String, String> controlCasePairings;
   private final Map<String, Integer> sampleIndexById;
@@ -48,34 +41,13 @@ public class DataBox {
   private double[] multivariatePValues;
   private boolean multivariatePValuesComputed = false;
 
-  public DataBox(MatchingVariable[] allMatchingVariables, Map<String, String> controlCasePairings) {
-    this(Arrays.stream(allMatchingVariables).filter(mv -> !mv.isBinary)
-               .toArray(MatchingVariable[]::new),
-         Arrays.stream(allMatchingVariables).filter(mv -> mv.isBinary)
-               .toArray(MatchingVariable[]::new),
-         controlCasePairings);
-  }
+  public DataBox(MatchingVariable[] matchingVariables, Map<String, String> controlCasePairings) {
+    this.matchingVariables = matchingVariables;
 
-  public DataBox(MatchingVariable[] continuousMatchingVariables,
-                 MatchingVariable[] binaryMatchingVariables,
-                 Map<String, String> controlCasePairings) {
-
-    this.continuousMatchingVariables = continuousMatchingVariables;
-    this.binaryMatchingVariables = binaryMatchingVariables;
-
-    // Initialize MV index maps and set data box fields in each MV.
     this.matchingVariableIndexMap = new HashMap<>();
-    this.combinedVariableIndexMap = new HashMap<>();
-    for (int i = 0; i < continuousMatchingVariables.length; i++) {
-      MatchingVariable mv = continuousMatchingVariables[i];
+    for (int i = 0; i < this.matchingVariables.length; i++) {
+      MatchingVariable mv = this.matchingVariables[i];
       matchingVariableIndexMap.put(mv, i);
-      combinedVariableIndexMap.put(mv, i);
-      mv.setDataBox(this);
-    }
-    for (int i = 0; i < binaryMatchingVariables.length; i++) {
-      MatchingVariable mv = binaryMatchingVariables[i];
-      matchingVariableIndexMap.put(mv, i);
-      combinedVariableIndexMap.put(mv, continuousMatchingVariables.length + i);
       mv.setDataBox(this);
     }
 
@@ -84,9 +56,7 @@ public class DataBox {
     this.controlIds = controlCasePairings.keySet();
     this.totalSampleCount = caseIds.size() + controlIds.size();
 
-    this.binaryData = new int[totalSampleCount][binaryMatchingVariables.length];
-    this.continuousData = new double[totalSampleCount][continuousMatchingVariables.length];
-
+    this.data = new double[totalSampleCount][matchingVariables.length];
     this.sampleIndexById = new HashMap<>(totalSampleCount);
     this.sampleIdByIndex = new String[totalSampleCount];
   }
@@ -100,20 +70,20 @@ public class DataBox {
       sampleIndexById.put(sampleId, nextSampleIndex);
       sampleIdByIndex[nextSampleIndex] = sampleId;
 
-      for (int i = 0; i < binaryMatchingVariables.length; i++) {
-        MatchingVariable mv = binaryMatchingVariables[i];
-        binaryData[nextSampleIndex][i] = Integer.parseInt(line[mv.getHeaderIndex()]);
-      }
-      for (int i = 0; i < continuousMatchingVariables.length; i++) {
-        MatchingVariable mv = continuousMatchingVariables[i];
-        continuousData[nextSampleIndex][i] = Double.parseDouble(line[mv.getHeaderIndex()]);
+      for (int i = 0; i < matchingVariables.length; i++) {
+        MatchingVariable mv = matchingVariables[i];
+        double value = Double.parseDouble(line[mv.getHeaderIndex()]);
+        mv.checkBinary(value);
+        data[nextSampleIndex][i] = value;
       }
       nextSampleIndex++;
     }
   }
 
   public void computeConcordances() {
-    int[] matchCounts = new int[binaryMatchingVariables.length];
+    int[] matchCounts = new int[matchingVariables.length];
+    this.concordances = new double[matchingVariables.length];
+
     // iterate over samples
     for (int si = 0; si < totalSampleCount; si++) {
       if (caseIds.contains(sampleIdByIndex[si])) {
@@ -124,39 +94,52 @@ public class DataBox {
       int caseIndex = getCaseIndexForControlIndex(si);
       // iterate over variables
       for (int vi = 0; vi < matchCounts.length; vi++) {
-        int controlValue = binaryData[si][vi];
-        int caseValue = binaryData[caseIndex][vi];
-        if (controlValue == caseValue) {
-          matchCounts[vi]++;
+        if (matchingVariables[vi].isBinary()) {
+          double controlValue = data[si][vi];
+          double caseValue = data[caseIndex][vi];
+          if (controlValue == caseValue) {
+            matchCounts[vi]++;
+          }
         }
       }
     }
-    this.concordances = new double[binaryMatchingVariables.length];
+
     for (int i = 0; i < concordances.length; i++) {
-      // divide by the number of controls
-      concordances[i] = (double) matchCounts[i] / controlCasePairings.size();
+      if (matchingVariables[i].isBinary()) {
+        // divide by the number of controls
+        concordances[i] = (double) matchCounts[i] / controlCasePairings.size();
+      } else {
+        concordances[i] = Double.NaN;
+      }
     }
     concordancesComputed = true;
   }
 
   public void computeAverages() {
-    this.caseAverages = new double[continuousMatchingVariables.length];
-    this.controlAverages = new double[continuousMatchingVariables.length];
+    this.caseAverages = new double[matchingVariables.length];
+    this.controlAverages = new double[matchingVariables.length];
+
     // iterate over samples
     for (int si = 0; si < totalSampleCount; si++) {
       // iterate over variables
-      for (int vi = 0; vi < continuousMatchingVariables.length; vi++) {
-        if (caseIds.contains(sampleIdByIndex[si])) {
-          caseAverages[vi] += continuousData[si][vi];
-        } else {
-          controlAverages[vi] += continuousData[si][vi];
+      for (int vi = 0; vi < matchingVariables.length; vi++) {
+        if (matchingVariables[vi].isContinuous()) {
+          if (caseIds.contains(sampleIdByIndex[si])) {
+            caseAverages[vi] += data[si][vi];
+          } else {
+            controlAverages[vi] += data[si][vi];
+          }
         }
       }
     }
-    for (int i = 0; i < continuousMatchingVariables.length; i++) {
-      // divide by number of cases and controls, respectively
-      caseAverages[i] /= caseIds.size();
-      controlAverages[i] /= controlCasePairings.size();
+    for (int i = 0; i < matchingVariables.length; i++) {
+      if (matchingVariables[i].isContinuous()) {
+        // divide by number of cases and controls, respectively
+        caseAverages[i] /= caseIds.size();
+        controlAverages[i] /= controlCasePairings.size();
+      } else {
+        caseAverages[i] = controlAverages[i] = Double.NaN;
+      }
     }
     averagesComputed = true;
   }
@@ -164,55 +147,48 @@ public class DataBox {
   public void computeUnivariateP() {
     double[] deps = Arrays.stream(sampleIdByIndex)
                           .mapToDouble(sampleId -> caseIds.contains(sampleId) ? 1 : 0).toArray();
-    this.univariatePValues = new double[matchingVariableIndexMap.size()];
 
-    for (MatchingVariable mv : matchingVariableIndexMap.keySet()) {
+    this.univariatePValues = new double[matchingVariables.length];
+
+    for (int mvIndex = 0; mvIndex < matchingVariables.length; mvIndex++) {
+      MatchingVariable mv = matchingVariables[mvIndex];
+
       double[] indeps = new double[totalSampleCount];
-      int mvIndex = matchingVariableIndexMap.get(mv);
-      if (mv.isBinary) {
-        for (int si = 0; si < totalSampleCount; si++) {
-          indeps[si] = binaryData[si][mvIndex];
-        }
-      } else {
-        for (int si = 0; si < totalSampleCount; si++) {
-          indeps[si] = continuousData[si][mvIndex];
-        }
+
+      for (int si = 0; si < totalSampleCount; si++) {
+        indeps[si] = data[si][mvIndex];
       }
+
       RegressionModel model = new LogisticRegression(deps, indeps);
-      univariatePValues[combinedVariableIndexMap.get(mv)] = model.getOverallSig();
+      univariatePValues[mvIndex] = model.getOverallSig();
     }
     univariatePValuesComputed = true;
   }
 
   public void computeMultivariateP() {
-    this.multivariatePValues = new double[combinedVariableIndexMap.size()];
-    // dependant variables: we just have one, case/control status
+    this.multivariatePValues = new double[matchingVariables.length];
+    // dependent variables: we just have one, case/control status
     // this is represented as an array of 1s for cases and 0s for controls
     double[] deps = Arrays.stream(sampleIdByIndex)
                           .mapToDouble(sampleId -> caseIds.contains(sampleId) ? 1 : 0).toArray();
 
-    double[][] indeps = new double[totalSampleCount][combinedVariableIndexMap.size()];
+    // todo: I'm just copying the array here
+    double[][] indeps = new double[totalSampleCount][matchingVariables.length];
     for (int si = 0; si < totalSampleCount; si++) {
-      for (MatchingVariable mv : combinedVariableIndexMap.keySet()) {
-        if (mv.isBinary) {
-          indeps[si][combinedVariableIndexMap.get(mv)] = binaryData[si][matchingVariableIndexMap.get(mv)];
-        } else {
-          indeps[si][combinedVariableIndexMap.get(mv)] = continuousData[si][matchingVariableIndexMap.get(mv)];
-        }
+      for (int mvIndex = 0; mvIndex < matchingVariables.length; mvIndex++) {
+        indeps[si][mvIndex] = data[si][mvIndex];
       }
     }
 
-    String[] indepVariableNames = new String[combinedVariableIndexMap.size()];
-    for (MatchingVariable mv : combinedVariableIndexMap.keySet()) {
-      int combinedIndex = combinedVariableIndexMap.get(mv);
-      indepVariableNames[combinedIndex] = mv.headerName;
-    }
+    String[] indepVariableNames = Arrays.stream(matchingVariables)
+                                        .map(matchingVariable -> matchingVariable.headerName)
+                                        .toArray(String[]::new);
 
     RegressionModel model = new LogisticRegression(deps, indeps, indepVariableNames, false, true);
 
-    for (MatchingVariable mv : combinedVariableIndexMap.keySet()) {
+    for (MatchingVariable mv : matchingVariables) {
       int indexInModelSigs = ext.indexOfStr(mv.headerName, model.getVarNames());
-      multivariatePValues[combinedVariableIndexMap.get(mv)] = model.getSigs()[indexInModelSigs];
+      multivariatePValues[matchingVariableIndexMap.get(mv)] = model.getSigs()[indexInModelSigs];
     }
     multivariatePValuesComputed = true;
   }
@@ -264,13 +240,13 @@ public class DataBox {
 
   public double getUnivariateP(MatchingVariable matchingVariable) {
     computeUnivariatePIfNecessary();
-    int combinedMvIndex = combinedVariableIndexMap.get(matchingVariable);
+    int combinedMvIndex = matchingVariableIndexMap.get(matchingVariable);
     return univariatePValues[combinedMvIndex];
   }
 
   public double getMultivariateP(MatchingVariable matchingVariable) {
     computeMultivariatePIfNecessary();
-    int combinedMvIndex = combinedVariableIndexMap.get(matchingVariable);
+    int combinedMvIndex = matchingVariableIndexMap.get(matchingVariable);
     return multivariatePValues[combinedMvIndex];
   }
 

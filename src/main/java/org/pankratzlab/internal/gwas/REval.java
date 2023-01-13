@@ -132,7 +132,7 @@ public class REval {
                    + "dir=working_directory/ (optional, default=./)\n"
                    + "status=path/to/status_file.tsv (optional, default=status.optimized.txt, path is relative to working directory)\n"
                    + "phenotype=path/to/phenotype_file.tsv (required, path is relative to working directory)\n"
-                   + "matchingVars=path/to/matching_vars_file.tsv (optional, default=matching_variables.tsv, path is relative to working directory)\n"
+                   + "matchingVars=foo;bar (required, a semicolon-separated list of column names in the phenotype file)"
                    + "output=path/to/output_file.tsv (optional, default=reval_results.tsv, path is relative to working directory\n"
                    + "\n"
                    + "status file:        This should be the output from MatchMaker\n"
@@ -145,7 +145,7 @@ public class REval {
     Path dir = Paths.get("./");
     Path status = Paths.get("status.optimized.txt");
     Path phenotype = null;
-    Path matchingVariables = Paths.get("matching_variables.tsv");
+    String matchingVariables = null;
     Path output = Paths.get("reval_results.tsv");
 
     for (String arg : args) {
@@ -159,20 +159,19 @@ public class REval {
       } else if (arg.startsWith("phenotype=")) {
         phenotype = parsePathFromArg(arg);
       } else if (arg.startsWith("matchingVars=")) {
-        matchingVariables = parsePathFromArg(arg);
+        matchingVariables = arg.split("=")[1];
       } else if (arg.startsWith("output=")) {
         output = parsePathFromArg(arg);
       }
     }
 
-    if (phenotype == null) {
+    if (phenotype == null || matchingVariables == null) {
       System.err.println("No phenotype file provided, cannot continue.");
       System.err.println(usage);
       exit(1);
     }
 
-    MatchingVariable[] matchingVariablesArray = MatchingVariable.fromFile(dir.resolve(matchingVariables)
-                                                                             .toFile());
+    MatchingVariable[] matchingVariablesArray = MatchingVariable.fromSemicolonSeparatedString(matchingVariables);
     File statusFile = dir.resolve(status).toFile();
     File phenotypeFile = dir.resolve(phenotype).toFile();
     File outputFile = dir.resolve(output).toFile();

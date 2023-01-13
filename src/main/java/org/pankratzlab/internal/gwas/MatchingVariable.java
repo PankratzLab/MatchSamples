@@ -1,33 +1,57 @@
 package org.pankratzlab.internal.gwas;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
-import org.pankratzlab.common.Files;
 import org.pankratzlab.common.ext;
 
 public class MatchingVariable {
   public static final String NA = "NA";
-  final public String prettyName;
-  final public String headerName;
-  final public boolean isBinary;
+  public final String prettyName;
+  public final String headerName;
+
+  private boolean isBinary = true;
 
   private int headerIndex = -1;
 
   private DataBox dataBox;
 
-  public MatchingVariable(String headerName, boolean isBinary) {
+  private Set<Double> uniqueValues = new HashSet<>();
+  private double maxValue = Double.NEGATIVE_INFINITY;
+  private double minValue = Double.POSITIVE_INFINITY;
+
+  public MatchingVariable(String headerName) {
     this.headerName = headerName;
     this.prettyName = headerName;
-    this.isBinary = isBinary;
   }
 
   public int findIndexInHeader(String[] header) {
     headerIndex = ext.indexOfStr(headerName, header);
     return headerIndex;
+  }
+
+  public void checkBinary(Double value) {
+    if (isBinary) {
+      uniqueValues.add(value);
+      if (uniqueValues.size() > 2) {
+        isBinary = false;
+        return;
+      }
+      maxValue = Math.max(maxValue, value);
+      minValue = Math.min(minValue, value);
+      if (maxValue - minValue > 1) {
+        isBinary = false;
+      }
+    }
+  }
+
+  public boolean isBinary() {
+    return isBinary;
+  }
+
+  public boolean isContinuous() {
+    return !isBinary;
   }
 
   public int getHeaderIndex() {
@@ -87,32 +111,10 @@ public class MatchingVariable {
     }
   }
 
-  private static MatchingVariable fromString(String s) {
-    String[] values = s.strip().split("\t");
-    if (values.length != 2) {
-      throw new IllegalArgumentException("Matching variable data appears to have the wrong number of values.");
-    }
-    String name = values[0].strip();
-    boolean binary = Boolean.parseBoolean(values[1].trim());
-    return new MatchingVariable(name, binary);
-  }
+  public static MatchingVariable[] fromSemicolonSeparatedString(String semicolonSep) {
+    String[] names = semicolonSep.split(";");
+    return Arrays.stream(names).map(String::strip).map(MatchingVariable::new)
+                 .toArray(MatchingVariable[]::new);
 
-  public static MatchingVariable[] fromFile(File file) throws IOException {
-    if (!file.isFile()) {
-      throw new IllegalArgumentException("Given matching variable file does not exist or is not a normal file.");
-    }
-    BufferedReader reader = Files.getAppropriateReader(file.toString());
-    String expectedHeader = "header_name\tis_binary";
-    String actualHeader = reader.readLine().strip();
-    if (!actualHeader.equals(expectedHeader)) {
-      throw new IllegalArgumentException("The provided matching variable file has an incorrect header.");
-    }
-    List<MatchingVariable> matchingVariables = new ArrayList<>();
-    String inputLine = reader.readLine();
-    while (inputLine != null) {
-      matchingVariables.add(fromString(inputLine));
-      inputLine = reader.readLine();
-    }
-    return matchingVariables.toArray(MatchingVariable[]::new);
   }
 }
