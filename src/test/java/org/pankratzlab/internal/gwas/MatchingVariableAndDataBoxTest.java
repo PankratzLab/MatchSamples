@@ -6,7 +6,9 @@ import org.junit.Test;
 import org.junit.jupiter.api.function.Executable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MatchingVariableAndDataBoxTest {
 
@@ -67,5 +69,43 @@ public class MatchingVariableAndDataBoxTest {
     for (Executable method : binaryOnlyMethods) {
       assertThrows(UnsupportedOperationException.class, method);
     }
+  }
+
+  @Test
+  public void testBinaryDetectionBasedOnUniqueValueCount() {
+    MatchingVariable mv = new MatchingVariable("foo");
+    mv.findIndexInHeader(new String[] {"id", "foo"});
+
+    Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1", "cont3", "case1");
+    DataBox dataBox = new DataBox(new MatchingVariable[] {mv}, pairings);
+
+    dataBox.recordData(new String[] {"cont1", "1"});
+    dataBox.recordData(new String[] {"cont2", "0"});
+    dataBox.recordData(new String[] {"case1", "0"});
+
+    assertTrue(mv.isBinary());
+
+    dataBox.recordData(new String[] {"cont3", "1.1"});
+
+    assertFalse(mv.isBinary());
+  }
+
+  @Test
+  public void testBinaryDetectionBasedOnValueRange() {
+    MatchingVariable mv = new MatchingVariable("foo");
+    mv.findIndexInHeader(new String[] {"id", "foo"});
+
+    Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1", "cont3", "case1");
+    DataBox dataBox = new DataBox(new MatchingVariable[] {mv}, pairings);
+
+    dataBox.recordData(new String[] {"cont1", "0"});
+    dataBox.recordData(new String[] {"cont2", "0"});
+    dataBox.recordData(new String[] {"case1", "0"});
+
+    assertTrue(mv.isBinary());
+
+    dataBox.recordData(new String[] {"cont3", "1.1"});
+
+    assertFalse(mv.isBinary());
   }
 }
