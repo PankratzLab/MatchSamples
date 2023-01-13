@@ -12,10 +12,10 @@ public class MatchingVariableAndDataBoxTest {
 
   @Test
   public void testRecordControlValues() {
-    MatchingVariable mv = new MatchingVariable("foo", true);
+    MatchingVariable mv = new MatchingVariable("foo");
     mv.findIndexInHeader(new String[] {"id", "foo"});
     Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1");
-    DataBox dataBox = new DataBox(new MatchingVariable[] {}, new MatchingVariable[] {mv}, pairings);
+    DataBox dataBox = new DataBox(new MatchingVariable[] {mv}, pairings);
 
     dataBox.recordData(new String[] {"cont1", "1"});
     dataBox.recordData(new String[] {"cont2", "0"});
@@ -26,11 +26,11 @@ public class MatchingVariableAndDataBoxTest {
 
   @Test
   public void testCaseValueNotSet() {
-    MatchingVariable mv = new MatchingVariable("foo", true);
+    MatchingVariable mv = new MatchingVariable("foo");
     mv.findIndexInHeader(new String[] {"id", "foo"});
     Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1");
 
-    DataBox dataBox = new DataBox(new MatchingVariable[] {}, new MatchingVariable[] {mv}, pairings);
+    DataBox dataBox = new DataBox(new MatchingVariable[] {mv}, pairings);
 
     dataBox.recordData(new String[] {"cont1", "1"});
     dataBox.recordData(new String[] {"cont2", "0"});
@@ -40,18 +40,32 @@ public class MatchingVariableAndDataBoxTest {
 
   @Test
   public void testMethodRestrictionBasedOnBinary() {
-    MatchingVariable binary = new MatchingVariable("foo", true);
+    MatchingVariable binary = new MatchingVariable("foo");
+    MatchingVariable continuous = new MatchingVariable("bar");
+
+    String[] header = new String[] {"id", "foo", "bar"};
+    binary.findIndexInHeader(header);
+    continuous.findIndexInHeader(header);
+
+    Map<String, String> pairings = Map.of("cont1", "case1", "cont2", "case1");
+
+    DataBox dataBox = new DataBox(new MatchingVariable[] {binary, continuous}, pairings);
+
+    // MVs are binary by default so this should work with no data recorded
     Executable[] nonBinaryOnlyMethods = new Executable[] {binary::getControlAvg,
                                                           binary::getCaseAvg};
     for (Executable method : nonBinaryOnlyMethods) {
       assertThrows(UnsupportedOperationException.class, method);
     }
 
-    MatchingVariable continuous = new MatchingVariable("bar", false);
+    // MVs are binary by default so we have to record a bit of data to make one continuous
+    dataBox.recordData(new String[] {"cont1", "0", "2.5"});
+    dataBox.recordData(new String[] {"cont2", "1", "1.3"});
+    dataBox.recordData(new String[] {"case1", "1", "-3.4"});
+
     Executable[] binaryOnlyMethods = new Executable[] {continuous::getConcordance};
     for (Executable method : binaryOnlyMethods) {
       assertThrows(UnsupportedOperationException.class, method);
     }
   }
-
 }

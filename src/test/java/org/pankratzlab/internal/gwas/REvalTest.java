@@ -11,8 +11,8 @@ public class REvalTest {
 
   @Test
   public void basicFunctionTest() throws IOException {
-    MatchingVariable foo = new MatchingVariable("foo", false);
-    MatchingVariable bar = new MatchingVariable("bar", true);
+    MatchingVariable foo = new MatchingVariable("foo");
+    MatchingVariable bar = new MatchingVariable("bar");
     File status = new File("src/test/resources/status.tsv");
     File phenotype = new File("src/test/resources/phenotype.tsv");
 
