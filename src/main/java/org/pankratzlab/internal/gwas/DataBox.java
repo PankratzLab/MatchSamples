@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import org.pankratzlab.common.ext;
 import org.pankratzlab.common.stats.LogisticRegression;
@@ -40,6 +41,8 @@ public class DataBox {
 
   private double[] multivariatePValues;
   private boolean multivariatePValuesComputed = false;
+
+  private final Logger log = Logger.getAnonymousLogger();
 
   public DataBox(MatchingVariable[] matchingVariables, Map<String, String> controlCasePairings) {
     this.matchingVariables = matchingVariables;
@@ -172,23 +175,21 @@ public class DataBox {
     double[] deps = Arrays.stream(sampleIdByIndex)
                           .mapToDouble(sampleId -> caseIds.contains(sampleId) ? 1 : 0).toArray();
 
-    // todo: I'm just copying the array here
-    double[][] indeps = new double[totalSampleCount][matchingVariables.length];
-    for (int si = 0; si < totalSampleCount; si++) {
-      for (int mvIndex = 0; mvIndex < matchingVariables.length; mvIndex++) {
-        indeps[si][mvIndex] = data[si][mvIndex];
-      }
-    }
-
     String[] indepVariableNames = Arrays.stream(matchingVariables)
                                         .map(matchingVariable -> matchingVariable.headerName)
                                         .toArray(String[]::new);
 
-    RegressionModel model = new LogisticRegression(deps, indeps, indepVariableNames, false, true);
+    RegressionModel model = new LogisticRegression(deps, data, indepVariableNames, false, true);
 
     for (MatchingVariable mv : matchingVariables) {
       int indexInModelSigs = ext.indexOfStr(mv.headerName, model.getVarNames());
-      multivariatePValues[matchingVariableIndexMap.get(mv)] = model.getSigs()[indexInModelSigs];
+      double p = model.getSigs()[indexInModelSigs];
+      multivariatePValues[matchingVariableIndexMap.get(mv)] = p;
+
+      if (Double.isNaN(p)) {
+        log.warning("Found multivariate p value for " + mv.headerName
+                    + " is NaN. This may be caused by colinearity or other malformations in the phenotype data.");
+      }
     }
     multivariatePValuesComputed = true;
   }
