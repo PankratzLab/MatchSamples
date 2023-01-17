@@ -53,7 +53,6 @@ public class REval {
     this.controlCasePairings = readPairings();
 
     this.dataBox = new DataBox(matchingVariables, controlCasePairings);
-
   }
 
   public void readPhenotypeFile() throws IOException {

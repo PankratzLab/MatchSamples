@@ -34,10 +34,10 @@ import org.pankratzlab.kdmatch.SelectOptimizedNeighbors;
 import com.google.common.primitives.Ints;
 
 public class MatchMaker {
-  private static final String naiveMatchFileName = "match.naive.txt";
-  private static final String naiveStatusFileName = "status.naive.txt";
-  private static final String optimizedMatchFileName = "match.optimized.txt";
-  private static final String optimizedStatusFileName = "status.optimized.txt";
+  private static final String MATCH_NAIVE_TXT = "match.naive.txt";
+  private static final String STATUS_NAIVE_TXT = "status.naive.txt";
+  private static final String MATCH_OPTIMIZED_TXT = "match.optimized.txt";
+  private static final String STATUS_OPTIMIZED_TXT = "status.optimized.txt";
 
   private static List<Match> kdMatchMaker(Path baseDir, Path inputSamples, List<Sample> caseList,
                                           List<Sample> controlList,
@@ -59,10 +59,10 @@ public class MatchMaker {
                                                                     initialNumSelect)
                                      .collect(Collectors.toList());
 
-    String outputBaseFileName = baseDir + File.separator + naiveMatchFileName;
-    String statusBaseFileName = baseDir + File.separator + naiveStatusFileName;
+    String outputNaiveFileName = baseDir + File.separator + MATCH_NAIVE_TXT;
+    String statusNaiveFileName = baseDir + File.separator + STATUS_NAIVE_TXT;
     log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
-             + outputBaseFileName);
+             + outputNaiveFileName);
     LinkedHashSet<String> setConvert = new LinkedHashSet<String>();
 
     try {
@@ -72,11 +72,11 @@ public class MatchMaker {
         setConvert.add(header[i]);
       }
       try {
-        KDMatch.writeToFile(naiveMatches.stream(), outputBaseFileName,
+        KDMatch.writeToFile(naiveMatches.stream(), outputNaiveFileName,
                             setConvert.stream().toArray(String[]::new),
                             setConvert.stream().toArray(String[]::new), initialNumSelect);
 
-        KDMatch.writeSampleStatusFile(naiveMatches.stream(), statusBaseFileName, initialNumSelect);
+        KDMatch.writeSampleStatusFile(naiveMatches.stream(), statusNaiveFileName, initialNumSelect);
       } catch (IOException e) {
         e.printStackTrace();
       }
@@ -85,8 +85,8 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    String outputOptFileName = baseDir + File.separator + optimizedMatchFileName;
-    String statusOptFileName = baseDir + File.separator + optimizedStatusFileName;
+    String outputOptFileName = baseDir + File.separator + MATCH_OPTIMIZED_TXT;
+    String statusOptFileName = baseDir + File.separator + STATUS_OPTIMIZED_TXT;
     log.info("selecting optimized nearest neighbors");
 
     List<Match> optimizedMatches = null;
@@ -527,6 +527,8 @@ public class MatchMaker {
     int threads = Runtime.getRuntime().availableProcessors();
     boolean vis = false;
     boolean onlyBuildVisFiles = false;
+    boolean skipEval = false;
+    String evalHeaderNames = null;
     LinkedHashMap<String, String> evalArgs;
     Logger log;
 
@@ -540,7 +542,9 @@ public class MatchMaker {
                    + "(7) Normalize the input factors before matching (e.g. normalize=true (default))\n"
                    + "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex:nominal (default))\n"
                    + "(9) Visualize results - (e.g. vis=false (default))\n"
-                   + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n";
+                   + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n"
+                   + "(11) Skip evaluation - skip generating statistical analysis of matchmaking quality (e.g. skipEval=false (default))\n"
+                   + "(12) evalHeaderNames - header names to use in statistical evaluation, defaults to using all given factor names - (e.g. evalHeaderNames=Age;PC1;PC2...)";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -553,32 +557,43 @@ public class MatchMaker {
         samples = Paths.get(arg.split("=")[1]);
         numArgs--;
       } else if (arg.startsWith("factors=")) {
-        factorLoadings = new FactorLoadings(arg.split("=")[1]);
+        factorLoadings = new FactorLoadings(splitEq(arg));
         numArgs--;
       } else if (arg.startsWith("normalize=")) {
-        normalize = Boolean.parseBoolean(arg.split("=")[1]);
+        normalize = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("iterations=")) {
-        finalNumSelect = Integer.parseInt(arg.split("=")[1]);
+        finalNumSelect = Integer.parseInt(splitEq(arg));
       } else if (arg.startsWith("multiplier=")) {
-        multiplier = Integer.parseInt(arg.split("=")[1]);
+        multiplier = Integer.parseInt(splitEq(arg));
       } else if (arg.startsWith("eval=")) {
-        evalArgs = parseEvalArgs(arg.split("=")[1]);
+        evalArgs = parseEvalArgs(splitEq(arg));
       } else if (arg.startsWith("normalize=")) {
-        normalize = Boolean.parseBoolean(arg.split("=")[1]);
+        normalize = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("vis=")) {
-        vis = Boolean.parseBoolean(arg.split("=")[1]);
+        vis = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("onlyBuildVisFiles=")) {
-        onlyBuildVisFiles = Boolean.parseBoolean(arg.split("=")[1]);
+        onlyBuildVisFiles = Boolean.parseBoolean(splitEq(arg));
+      } else if (arg.startsWith("skipEval=")) {
+        skipEval = Boolean.parseBoolean(splitEq(arg));
+      } else if (arg.startsWith("evalHeaderNames=")) {
+        evalHeaderNames = splitEq(arg);
       }
     }
+
+    if (factorLoadings == null) {
+      System.err.println("No factors supplied, unable to continue");
+      System.err.println(usage);
+      System.exit(1);
+    }
+
     int initialNumSelect = finalNumSelect * multiplier;
     samples = Paths.get(d.toString() + File.separator + samples.toString());
     log = Logger.getAnonymousLogger();
     log.info("Starting sample match using k-d tree nearest neighbors.");
 
     try {
-      List<String> fileNames = List.of(naiveMatchFileName, naiveStatusFileName,
-                                       optimizedMatchFileName, optimizedStatusFileName);
+      List<String> fileNames = List.of(MATCH_NAIVE_TXT, STATUS_NAIVE_TXT, MATCH_OPTIMIZED_TXT,
+                                       STATUS_OPTIMIZED_TXT);
       final Path finalD = d;
       boolean outputExists = fileNames.stream()
                                       .map(name -> new File(finalD + File.separator + name))
@@ -587,10 +602,12 @@ public class MatchMaker {
         log.info("Output already exists.");
         System.exit(0);
       }
-      samples = runMatching(d, samples, factorLoadings, initialNumSelect, finalNumSelect, threads,
+      Path normalizedSamples = runMatching(d, samples, factorLoadings, initialNumSelect,
+                                           finalNumSelect, threads,
                             normalize, log);
       if (vis) {
-        HashMap<Integer, Double> temp = getNumericColumnsForClustering(samples, factorLoadings);
+        HashMap<Integer, Double> temp = getNumericColumnsForClustering(normalizedSamples,
+                                                                       factorLoadings);
         int[] loadingIndicesForVis = new int[temp.keySet().size()];
         int ind = 0;
         for (Integer x : temp.keySet()) {
@@ -602,10 +619,10 @@ public class MatchMaker {
         }
         for (int i = 0; i < finalNumSelect; i++) {
           Path resultsFile = Paths.get(new File(d + File.separator
-                                                + optimizedMatchFileName).toString());
-          buildVisHelpers(d, resultsFile, samples, i, log);
+                                                + MATCH_OPTIMIZED_TXT).toString());
+          buildVisHelpers(d, resultsFile, normalizedSamples, i, log);
           if (!onlyBuildVisFiles) {
-            new MatchesVisualized(d.toString(), samples.toString(),
+            new MatchesVisualized(d.toString(), normalizedSamples.toString(),
                                   d + "/visual_helpers/vis_helper_factors.temp",
                                   loadingIndicesForVis,
                                   d + "/visual_helpers/vis_helper_" + (i + 1) + ".temp", true);
@@ -613,10 +630,43 @@ public class MatchMaker {
         }
         // FileUtils.deleteDirectory(new File(d + "/visual_helpers/"));
       }
+
+      if (!skipEval) {
+        log.info("Performing eval");
+        MatchingVariable[] matchingVariables;
+        if (evalHeaderNames == null) {
+          matchingVariables = factorLoadings.getFactors().keySet().stream()
+                                            .map(MatchingVariable::new)
+                                            .toArray(MatchingVariable[]::new);
+        } else {
+          matchingVariables = MatchingVariable.fromSemicolonSeparatedString(evalHeaderNames);
+        }
+
+        // todo: find a better way to get the status file name
+        File naiveStatusFile = new File(d + File.separator + STATUS_NAIVE_TXT);
+        REval rEvalNaive = new REval(matchingVariables, naiveStatusFile, samples.toFile());
+        rEvalNaive.readPhenotypeFile();
+        File naiveRevalOutputFile = new File(d + File.separator + "eval_results_naive.tsv");
+        rEvalNaive.writeTableOutputToFile(naiveRevalOutputFile);
+        log.info("Wrote eval output to " + naiveRevalOutputFile.getName());
+
+        File optimizedStatusFile = new File(d + File.separator + STATUS_OPTIMIZED_TXT);
+        REval rEvalOptimized = new REval(matchingVariables, optimizedStatusFile, samples.toFile());
+        rEvalOptimized.readPhenotypeFile();
+        File optimizedRevalOutputFile = new File(d + File.separator + "eval_results_optimized.tsv");
+        rEvalOptimized.writeTableOutputToFile(optimizedRevalOutputFile);
+        log.info("Wrote eval output to " + optimizedRevalOutputFile.getName());
+        // obviously there's an opportunity for optimization here because this is reading the entire
+        // phenotype file twice, when only the statuses have changed.
+      }
+
     } catch (IOException e) {
       e.printStackTrace();
     }
+  }
 
+  private static String splitEq(String arg) {
+    return arg.split("=")[1];
   }
 
 }

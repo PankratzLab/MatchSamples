@@ -115,6 +115,5 @@ public class MatchingVariable {
     String[] names = semicolonSep.split(";");
     return Arrays.stream(names).map(String::strip).map(MatchingVariable::new)
                  .toArray(MatchingVariable[]::new);
-
   }
 }
