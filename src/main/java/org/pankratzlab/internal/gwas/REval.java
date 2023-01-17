@@ -131,7 +131,7 @@ public class REval {
                    + "dir=working_directory/ (optional, default=./)\n"
                    + "status=path/to/status_file.tsv (optional, default=status.optimized.txt, path is relative to working directory)\n"
                    + "phenotype=path/to/phenotype_file.tsv (required, path is relative to working directory)\n"
-                   + "matchingVars=foo;bar (required, a semicolon-separated list of column names in the phenotype file)"
+                   + "matchingVars=foo,bar (required, a comma-separated list of column names in the phenotype file)"
                    + "output=path/to/output_file.tsv (optional, default=reval_results.tsv, path is relative to working directory\n"
                    + "\n"
                    + "status file:        This should be the output from MatchMaker\n"
@@ -170,7 +170,7 @@ public class REval {
       exit(1);
     }
 
-    MatchingVariable[] matchingVariablesArray = MatchingVariable.fromSemicolonSeparatedString(matchingVariables);
+    MatchingVariable[] matchingVariablesArray = MatchingVariable.fromCommaSeparatedString(matchingVariables);
     File statusFile = dir.resolve(status).toFile();
     File phenotypeFile = dir.resolve(phenotype).toFile();
     File outputFile = dir.resolve(output).toFile();

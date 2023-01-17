@@ -1,6 +1,7 @@
 package org.pankratzlab.internal.gwas;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -111,9 +112,13 @@ public class MatchingVariable {
     }
   }
 
-  public static MatchingVariable[] fromSemicolonSeparatedString(String semicolonSep) {
-    String[] names = semicolonSep.split(";");
+  public static MatchingVariable[] fromCommaSeparatedString(String commaSep) {
+    String[] names = commaSep.split(",");
     return Arrays.stream(names).map(String::strip).map(MatchingVariable::new)
                  .toArray(MatchingVariable[]::new);
+  }
+
+  public static MatchingVariable[] fromNames(Collection<String> names) {
+    return names.stream().map(MatchingVariable::new).toArray(MatchingVariable[]::new);
   }
 }

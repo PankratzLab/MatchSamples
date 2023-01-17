@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -500,17 +499,12 @@ public class MatchMaker {
     return tempVisHelperFile.toString();
   }
 
-  public static LinkedHashMap<String, String> parseEvalArgs(String argString) {
-    LinkedHashMap<String, String> evalArgs = new LinkedHashMap<String, String>();
+  public static List<String> parseEvalArgs(String argString) {
+    List<String> evalArgs = new ArrayList<>();
     String[] commaSplit = argString.split(",");
 
     for (String s : commaSplit) {
-      if (s.contains(":")) {
-        String[] colonSplit = s.split(":");
-        evalArgs.put(colonSplit[0], colonSplit[1]);
-      } else {
-        evalArgs.put(s, "numeric");
-      }
+      evalArgs.add(s.split(":")[0]);
     }
     return evalArgs;
   }
@@ -528,8 +522,7 @@ public class MatchMaker {
     boolean vis = false;
     boolean onlyBuildVisFiles = false;
     boolean skipEval = false;
-    String evalHeaderNames = null;
-    LinkedHashMap<String, String> evalArgs;
+    List<String> evalArgs = null;
     Logger log;
 
     String usage = "\n" + "gwas.MatchMaker requires at least 1 argument\n"
@@ -540,11 +533,10 @@ public class MatchMaker {
                    + "(5) Iterations - number of controls to match to each case (e.g. iterations=4 (default))\n"
                    + "(6) Multiplier - naive matching multiplier (e.g. multiplier=5 (default))\n"
                    + "(7) Normalize the input factors before matching (e.g. normalize=true (default))\n"
-                   + "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex:nominal (default))\n"
+                   + "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex,PC1 (defaults to all factor names))\n"
                    + "(9) Visualize results - (e.g. vis=false (default))\n"
                    + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n"
-                   + "(11) Skip evaluation - skip generating statistical analysis of matchmaking quality (e.g. skipEval=false (default))\n"
-                   + "(12) evalHeaderNames - header names to use in statistical evaluation, defaults to using all given factor names - (e.g. evalHeaderNames=Age;PC1;PC2...)";
+                   + "(11) Skip evaluation - skip generating statistical analysis of matchmaking quality (e.g. skipEval=false (default))\n";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -567,16 +559,12 @@ public class MatchMaker {
         multiplier = Integer.parseInt(splitEq(arg));
       } else if (arg.startsWith("eval=")) {
         evalArgs = parseEvalArgs(splitEq(arg));
-      } else if (arg.startsWith("normalize=")) {
-        normalize = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("vis=")) {
         vis = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("onlyBuildVisFiles=")) {
         onlyBuildVisFiles = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("skipEval=")) {
         skipEval = Boolean.parseBoolean(splitEq(arg));
-      } else if (arg.startsWith("evalHeaderNames=")) {
-        evalHeaderNames = splitEq(arg);
       }
     }
 
@@ -603,8 +591,7 @@ public class MatchMaker {
         System.exit(0);
       }
       Path normalizedSamples = runMatching(d, samples, factorLoadings, initialNumSelect,
-                                           finalNumSelect, threads,
-                            normalize, log);
+                                           finalNumSelect, threads, normalize, log);
       if (vis) {
         HashMap<Integer, Double> temp = getNumericColumnsForClustering(normalizedSamples,
                                                                        factorLoadings);
@@ -634,15 +621,12 @@ public class MatchMaker {
       if (!skipEval) {
         log.info("Performing eval");
         MatchingVariable[] matchingVariables;
-        if (evalHeaderNames == null) {
-          matchingVariables = factorLoadings.getFactors().keySet().stream()
-                                            .map(MatchingVariable::new)
-                                            .toArray(MatchingVariable[]::new);
+        if (evalArgs == null) {
+          matchingVariables = MatchingVariable.fromNames(factorLoadings.getFactors().keySet());
         } else {
-          matchingVariables = MatchingVariable.fromSemicolonSeparatedString(evalHeaderNames);
+          matchingVariables = MatchingVariable.fromNames(evalArgs);
         }
 
-        // todo: find a better way to get the status file name
         File naiveStatusFile = new File(d + File.separator + STATUS_NAIVE_TXT);
         REval rEvalNaive = new REval(matchingVariables, naiveStatusFile, samples.toFile());
         rEvalNaive.readPhenotypeFile();
