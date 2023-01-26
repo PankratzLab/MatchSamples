@@ -183,7 +183,13 @@ public class DataBox {
 
     for (MatchingVariable mv : matchingVariables) {
       int indexInModelSigs = ext.indexOfStr(mv.headerName, model.getVarNames());
-      double p = model.getSigs()[indexInModelSigs];
+      double p = Double.NaN;
+      if (indexInModelSigs == -1) {
+        log.warning("No multivariate p calculated for " + mv.headerName
+                    + ". Value will be set to NaN.");
+      } else {
+        p = model.getSigs()[indexInModelSigs];
+      }
       multivariatePValues[matchingVariableIndexMap.get(mv)] = p;
 
       if (Double.isNaN(p)) {
