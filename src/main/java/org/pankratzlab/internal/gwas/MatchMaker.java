@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -188,18 +189,23 @@ public class MatchMaker {
 
   }
 
+  /**
+   * Find the index of each factor name in the sample file header and return a map from index to
+   * loading (index of factor in header) -> (factor loading)
+   * @param sampleFile the sample file to be read
+   * @param factorloadings An object containing the factor names and loadings
+   * @return A map of Integer -> Double representing index -> loading
+   */
   public static HashMap<Integer, Double> getNumericColumnsForClustering(Path sampleFile,
                                                                         FactorLoadings factorloadings) {
-    HashMap<Integer, Double> columnsToUse = new HashMap<Integer, Double>();
+    HashMap<Integer, Double> columnsToUse = new HashMap<>();
     try (BufferedReader origSamplesFile = org.pankratzlab.common.Files.getAppropriateReader(sampleFile.toString())) {
-      ArrayList<String> numericFactorNames = factorloadings.getNumericFactorNames();
-      ArrayList<Double> doubleLoadings = factorloadings.getDoubleLoadings();
-      String[] header = origSamplesFile.readLine().trim().split(PSF.Regex.GREEDY_WHITESPACE);
-      for (int i = 0; i < numericFactorNames.size(); i++) {
-        for (int j = 0; j < header.length; j++) {
-          if (header[j].equals(numericFactorNames.get(i))) {
-            columnsToUse.put(j, doubleLoadings.get(i));
-          }
+      Set<String> numericFactorNames = new HashSet<>(factorloadings.getNumericFactorNames());
+      String[] header = origSamplesFile.readLine().strip().split(PSF.Regex.GREEDY_WHITESPACE);
+
+      for (int j = 0; j < header.length; j++) {
+        if (numericFactorNames.contains(header[j])) {
+          columnsToUse.put(j, factorloadings.getLoadingForFactor(header[j]));
         }
       }
 
@@ -575,7 +581,8 @@ public class MatchMaker {
     }
 
     int initialNumSelect = finalNumSelect * multiplier;
-    samples = Paths.get(d.toString() + File.separator + samples.toString());
+    samples = Paths.get(d + File.separator + samples);
+
     log = Logger.getAnonymousLogger();
     log.info("Starting sample match using k-d tree nearest neighbors.");
 
