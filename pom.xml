@@ -17,8 +17,12 @@
 
 	<description></description>
 
-	<properties>
-	</properties>
+	<repositories>
+		<repository>
+			<id>central</id>
+			<url>https://repo1.maven.org/maven2</url>
+		</repository>
+	</repositories>
 
 	<dependencies>
 
@@ -36,6 +40,14 @@
 		<dependency>
 			<groupId>org.pankratzlab</groupId>
 			<artifactId>PLab-utils</artifactId>
+		</dependency>
+
+		<!-- JUnit - http://junit.org/ -->
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>${junit.version}</version>
+			<scope>test</scope>
 		</dependency>
 
 	</dependencies>

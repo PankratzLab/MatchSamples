@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -30,11 +28,7 @@ public class FactorLoadings {
         continue;
       } else {
         try {
-          if (s.contains("nom_")) {
-            doubleLoadings.add(Double.parseDouble(s.trim().split("_")[1]));
-          } else {
-            doubleLoadings.add(Double.parseDouble(s));
-          }
+          doubleLoadings.add(parseDoubleFromLoading(s));
         } catch (NumberFormatException nfe) {
           nfe.printStackTrace();
           System.exit(1);
@@ -42,6 +36,15 @@ public class FactorLoadings {
       }
     }
     return doubleLoadings;
+  }
+
+  public double getLoadingForFactor(String factorName) {
+    if (factorLoadings.containsKey(factorName)) {
+      return parseDoubleFromLoading(factorLoadings.get(factorName));
+    } else {
+      throw new IllegalArgumentException("Unable to get loading, invalid factor name provided: "
+                                         + factorName);
+    }
   }
 
   public ArrayList<String> getQuantFactorNames() {
@@ -140,5 +143,13 @@ public class FactorLoadings {
       index++;
     }
     return fl;
+  }
+
+  private static double parseDoubleFromLoading(String loading) {
+    if (loading.contains("nom_")) {
+      return Double.parseDouble(loading.strip().split("_")[1]);
+    } else {
+      return Double.parseDouble(loading);
+    }
   }
 }
