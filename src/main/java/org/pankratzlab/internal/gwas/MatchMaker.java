@@ -587,7 +587,7 @@ public class MatchMaker {
     samples = Paths.get(d + File.separator + samples);
 
     log = Logger.getAnonymousLogger();
-    log.info("Starting sampsle match using k-d tree nearest neighbors.");
+    log.info("Starting sample match using k-d tree nearest neighbors.");
 
     try {
       List<String> fileNames = List.of(MATCH_NAIVE_TXT, STATUS_NAIVE_TXT, MATCH_OPTIMIZED_TXT,
