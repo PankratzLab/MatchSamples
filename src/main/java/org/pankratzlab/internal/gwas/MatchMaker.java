@@ -542,7 +542,8 @@ public class MatchMaker {
                    + "(8) Eval - which arguments you want to check for concordance (e.g. eval=age,sex,PC1 (defaults to all factor names))\n"
                    + "(9) Visualize results - (e.g. vis=false (default))\n"
                    + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n"
-                   + "(11) Skip evaluation - skip generating statistical analysis of matchmaking quality (e.g. skipEval=false (default))\n";
+                   + "(11) Skip evaluation - skip generating statistical analysis of matchmaking quality (e.g. skipEval=false (default))\n"
+                   + "(12) Number of threads to use (default = Runtime.getRuntime().availableProcessors()) (e.g. threads=10) ";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -571,6 +572,8 @@ public class MatchMaker {
         onlyBuildVisFiles = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("skipEval=")) {
         skipEval = Boolean.parseBoolean(splitEq(arg));
+      } else if (arg.startsWith("threads=")) {
+        threads = Integer.parseInt(splitEq(arg));
       }
     }
 
@@ -584,7 +587,7 @@ public class MatchMaker {
     samples = Paths.get(d + File.separator + samples);
 
     log = Logger.getAnonymousLogger();
-    log.info("Starting sample match using k-d tree nearest neighbors.");
+    log.info("Starting sampsle match using k-d tree nearest neighbors.");
 
     try {
       List<String> fileNames = List.of(MATCH_NAIVE_TXT, STATUS_NAIVE_TXT, MATCH_OPTIMIZED_TXT,
