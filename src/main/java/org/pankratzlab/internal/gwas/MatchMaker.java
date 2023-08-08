@@ -43,7 +43,8 @@ public class MatchMaker {
                                           List<Sample> controlList,
                                           HashMap<Integer, Double> numericColumnsToUseForClustering,
                                           int initialNumSelect, int finalNumSelect,
-                                          FactorLoadings factorLoadings, int threads, Logger log) {
+                                          FactorLoadings factorLoadings, boolean skipOptimization,
+                                          int threads, Logger log) {
 
     KDTree<Sample> kdTree = new KDTree<>(numericColumnsToUseForClustering.keySet().size());
     log.info("Assuming 1 ID column and " + (numericColumnsToUseForClustering.keySet().size())
@@ -85,33 +86,39 @@ public class MatchMaker {
       System.exit(1);
     }
 
-    String outputOptFileName = baseDir + File.separator + MATCH_OPTIMIZED_TXT;
-    String statusOptFileName = baseDir + File.separator + STATUS_OPTIMIZED_TXT;
-    log.info("selecting optimized nearest neighbors");
+    if (skipOptimization) {
+      log.info("Skip optimization was flagged, returning only naive matches");
+      return naiveMatches;
 
-    List<Match> optimizedMatches = null;
-    try {
-      optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect,
-                                                                     threads, log)
-                                                 .collect(Collectors.toList());
-      log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to "
-               + outputOptFileName);
-      KDMatch.writeToFile(optimizedMatches.stream(), outputOptFileName,
-                          setConvert.stream().toArray(String[]::new),
-                          setConvert.stream().toArray(String[]::new), finalNumSelect);
-      KDMatch.writeSampleStatusFile(optimizedMatches.stream(), statusOptFileName, finalNumSelect);
-    } catch (StackOverflowError s1) {
-      s1.printStackTrace();
-      log.info("To potentially prevent this StackOverflowError, try increasing the Thread Stack Size with the -Xss argument passed to the java virtual machine (i.e. java -Xss10m)");
-    } catch (InterruptedException e1) {
-      e1.printStackTrace();
-    } catch (ExecutionException e2) {
-      e2.printStackTrace();
-    } catch (IOException e3) {
-      e3.printStackTrace();
+    } else {
+      String outputOptFileName = baseDir + File.separator + MATCH_OPTIMIZED_TXT;
+      String statusOptFileName = baseDir + File.separator + STATUS_OPTIMIZED_TXT;
+      log.info("selecting optimized nearest neighbors");
+
+      List<Match> optimizedMatches = null;
+      try {
+        optimizedMatches = SelectOptimizedNeighbors.optimizeDuplicates(naiveMatches, finalNumSelect,
+                                                                       threads, log)
+                                                   .collect(Collectors.toList());
+        log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to "
+                 + outputOptFileName);
+        KDMatch.writeToFile(optimizedMatches.stream(), outputOptFileName,
+                            setConvert.stream().toArray(String[]::new),
+                            setConvert.stream().toArray(String[]::new), finalNumSelect);
+        KDMatch.writeSampleStatusFile(optimizedMatches.stream(), statusOptFileName, finalNumSelect);
+      } catch (StackOverflowError s1) {
+        s1.printStackTrace();
+        log.info("To potentially prevent this StackOverflowError, try increasing the Thread Stack Size with the -Xss argument passed to the java virtual machine (i.e. java -Xss10m)");
+      } catch (InterruptedException e1) {
+        e1.printStackTrace();
+      } catch (ExecutionException e2) {
+        e2.printStackTrace();
+      } catch (IOException e3) {
+        e3.printStackTrace();
+      }
+
+      return optimizedMatches;
     }
-
-    return optimizedMatches;
 
   }
 
@@ -140,7 +147,8 @@ public class MatchMaker {
 
   public static Path runMatching(Path dir, Path inputSamples, FactorLoadings factorLoadings,
                                  int initialNumSelect, int finalNumSelect, int threads,
-                                 boolean normalize, Logger log) throws IOException {
+                                 boolean normalize, boolean skipOptimization,
+                                 Logger log) throws IOException {
 
     if (normalize) {
       inputSamples = normalizeFactors(dir, inputSamples, factorLoadings, log);
@@ -180,8 +188,9 @@ public class MatchMaker {
                                                                            numericColumnsToUseForClustering,
                                                                            initialNumSelect,
                                                                            finalNumSelect,
-                                                                           factorLoadings, threads,
-                                                                           log))
+                                                                           factorLoadings,
+                                                                           skipOptimization,
+                                                                           threads, log))
                                                     .flatMap(List::stream)
                                                     .collect(Collectors.toList());
 
@@ -528,6 +537,7 @@ public class MatchMaker {
     boolean vis = false;
     boolean onlyBuildVisFiles = false;
     boolean skipEval = false;
+    boolean skipOptimization = false;
     List<String> evalArgs = null;
     Logger log;
 
@@ -543,7 +553,8 @@ public class MatchMaker {
                    + "(9) Visualize results - (e.g. vis=false (default))\n"
                    + "(10) Only build the visualizer files to run separately - (e.g. onlyBuildVisFiles=false (default))\n"
                    + "(11) Skip evaluation - skip generating statistical analysis of matchmaking quality (e.g. skipEval=false (default))\n"
-                   + "(12) Number of threads to use (default = Runtime.getRuntime().availableProcessors()) (e.g. threads=10) ";
+                   + "(12) Skip optimization - skip optimization of matches (e.g. skipOptimization=false (default))\n"
+                   + "(13) Number of threads to use (default = Runtime.getRuntime().availableProcessors()) (e.g. threads=10) ";
 
     for (String arg : args) {
       if (arg.equals("-h") || arg.equals("-help") || arg.equals("/h") || arg.equals("/help")) {
@@ -572,6 +583,8 @@ public class MatchMaker {
         onlyBuildVisFiles = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("skipEval=")) {
         skipEval = Boolean.parseBoolean(splitEq(arg));
+      } else if (arg.startsWith("skipOptimization=")) {
+        skipOptimization = Boolean.parseBoolean(splitEq(arg));
       } else if (arg.startsWith("threads=")) {
         threads = Integer.parseInt(splitEq(arg));
       }
@@ -601,7 +614,8 @@ public class MatchMaker {
         System.exit(0);
       }
       Path normalizedSamples = runMatching(d, samples, factorLoadings, initialNumSelect,
-                                           finalNumSelect, threads, normalize, log);
+                                           finalNumSelect, threads, normalize, skipOptimization,
+                                           log);
       if (vis) {
         HashMap<Integer, Double> temp = getNumericColumnsForClustering(normalizedSamples,
                                                                        factorLoadings);
@@ -644,12 +658,18 @@ public class MatchMaker {
         rEvalNaive.writeTableOutputToFile(naiveRevalOutputFile);
         log.info("Wrote eval output to " + naiveRevalOutputFile.getName());
 
-        File optimizedStatusFile = new File(d + File.separator + STATUS_OPTIMIZED_TXT);
-        REval rEvalOptimized = new REval(matchingVariables, optimizedStatusFile, samples.toFile());
-        rEvalOptimized.readPhenotypeFile();
-        File optimizedRevalOutputFile = new File(d + File.separator + "eval_results_optimized.tsv");
-        rEvalOptimized.writeTableOutputToFile(optimizedRevalOutputFile);
-        log.info("Wrote eval output to " + optimizedRevalOutputFile.getName());
+        if (skipOptimization) {
+          log.info("Skip optimization was flagged, skipping evaluation of optimized matches");
+        } else {
+          File optimizedStatusFile = new File(d + File.separator + STATUS_OPTIMIZED_TXT);
+          REval rEvalOptimized = new REval(matchingVariables, optimizedStatusFile,
+                                           samples.toFile());
+          rEvalOptimized.readPhenotypeFile();
+          File optimizedRevalOutputFile = new File(d + File.separator
+                                                   + "eval_results_optimized.tsv");
+          rEvalOptimized.writeTableOutputToFile(optimizedRevalOutputFile);
+          log.info("Wrote eval output to " + optimizedRevalOutputFile.getName());
+        }
         // obviously there's an opportunity for optimization here because this is reading the entire
         // phenotype file twice, when only the statuses have changed.
       }
