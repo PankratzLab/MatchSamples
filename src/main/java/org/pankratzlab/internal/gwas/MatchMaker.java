@@ -88,7 +88,7 @@ public class MatchMaker {
 
     if (skipOptimization) {
       log.info("Skip optimization was flagged, returning only naive matches");
-      return (naiveMatches);
+      return naiveMatches;
 
     } else {
       String outputOptFileName = baseDir + File.separator + MATCH_OPTIMIZED_TXT;
